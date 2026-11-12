@@ -58,10 +58,11 @@ else
 
 // 显式三段：路由 → 认证 → 授权，必须早于 UseCube 注册。
 // Cube 的 UseCube 把「路由 + 端点映射」放在同一个调用里（内部 UseRouter 会 UseRouting + UseEndpoints），
-// 因此注册在它之后的 UseAuthorization 永远不会执行，后台接口的 [Authorize] 会退化成
-// 「endpoint 带授权元数据却没有授权中间件」的 500。先 UseRouting 让 Cube 复用同一条路由管道
-// （它检测 __EndpointRouteBuilder），授权中间件才能读到端点元数据；Cube 内部的 UseAuthentication
-// 变成第二次调用，对已认证的请求是幂等的。
+// 注册在它之后的中间件永远不会执行，所以先 UseRouting 让 Cube 复用同一条路由管道（它检测 __EndpointRouteBuilder）。
+//
+// 注意：后台接口的登录与权限判定<b>不</b>在中间件层——Cube 的登录用户要到 UseCube 内部才被还原，
+// 授权中间件此时只看到未认证请求（登录了也 401）。因此后台动作走
+// Security/RequireAdminOperationAttribute 的动作过滤器（端点执行前，Cube 中间件已跑完）。见 D-30 / D-33。
 app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();

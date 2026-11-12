@@ -20,7 +20,9 @@ public sealed class AdminDeadLettersController : AdminControllerBase
     /// <summary>构造死信管理接口。</summary>
     /// <param name="query">只读检索服务。</param>
     /// <param name="replay">重放服务。</param>
-    public AdminDeadLettersController(EventQueryService query, EventReplayService replay)
+    /// <param name="identity">当前请求身份。</param>
+    public AdminDeadLettersController(EventQueryService query, EventReplayService replay, IAdminIdentityAccessor identity)
+        : base(identity)
     {
         _query = query ?? throw new ArgumentNullException(nameof(query));
         _replay = replay ?? throw new ArgumentNullException(nameof(replay));

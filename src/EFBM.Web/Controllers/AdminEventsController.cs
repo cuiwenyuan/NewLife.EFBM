@@ -27,7 +27,9 @@ public sealed class AdminEventsController : AdminControllerBase
     /// <param name="query">只读检索服务。</param>
     /// <param name="replay">重放与标记服务。</param>
     /// <param name="export">导出与清理服务。</param>
-    public AdminEventsController(EventQueryService query, EventReplayService replay, EventExportService export)
+    /// <param name="identity">当前请求身份。</param>
+    public AdminEventsController(EventQueryService query, EventReplayService replay, EventExportService export, IAdminIdentityAccessor identity)
+        : base(identity)
     {
         _query = query ?? throw new ArgumentNullException(nameof(query));
         _replay = replay ?? throw new ArgumentNullException(nameof(replay));

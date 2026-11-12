@@ -20,6 +20,10 @@ public static class AdminServiceExtensions
         // 角色解析只依赖配置（内置别名 + EFBM:Admin:RoleAliases），构造一次复用，避免每次请求重建字典
         services.AddSingleton<IAdminRoleResolver, AdminRoleResolver>();
 
+        // 身份按请求解析（要读 Cube 的当前用户），Cube 若已注册 IHttpContextAccessor 则复用
+        services.AddHttpContextAccessor();
+        services.AddScoped<IAdminIdentityAccessor, CubeAdminIdentityAccessor>();
+
         return services;
     }
 }

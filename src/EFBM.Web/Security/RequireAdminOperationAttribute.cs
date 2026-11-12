@@ -6,14 +6,15 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace EFBM.Web.Security;
 
-/// <summary>声明式后台操作授权：标注动作需要的最低权限（FR-14）。</summary>
+/// <summary>声明式后台授权：标注动作需要的最低权限，同时负责「是否登录」（FR-14）。</summary>
 /// <remarks>
-/// 与 <c>[Authorize]</c> 分工明确：<c>[Authorize]</c> 只保证「登录了」，本特性保证「这个角色能干这件事」。
-/// 未登录仍是 401（由认证中间件处理并跳登录页），已登录但角色不够返回 403 与统一信封，
-/// 页面据此显示「无权限」而不是「登录过期」。
+/// 401 与 403 都在这里返回，不再用 <c>[Authorize]</c>：Cube 的登录用户要到 <c>UseCube</c> 的中间件里
+/// 才被还原，而授权中间件必须早于 <c>UseCube</c>（D-30），所以中间件层永远看到「未认证」。
+/// 动作过滤器在端点执行前运行，此时 Cube 的中间件已经跑完，能从 <see cref="IAdminIdentityAccessor"/>
+/// 拿到真实用户。详见 <see cref="CubeAdminIdentityAccessor"/> 的说明。
 ///
-/// 判定走 <see cref="AdminPermissionMatrix"/>，不在特性里写 if-else，
-/// 这样矩阵改动一处，接口、页面、单测三处自动一致。
+/// 判定顺序：未登录 → 401（提示去登录）；登录了但没角色 / 角色不够 → 403（说明缺哪项权限）。
+/// 两者都返回 <c>{code,message,data}</c> 信封，与上报端点一致。
 /// </remarks>
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method, AllowMultiple = false, Inherited = true)]
 public sealed class RequireAdminOperationAttribute : Attribute, IAsyncAuthorizationFilter
@@ -30,32 +31,39 @@ public sealed class RequireAdminOperationAttribute : Attribute, IAsyncAuthorizat
     {
         if (context == null) throw new ArgumentNullException(nameof(context));
 
-        var resolver = context.HttpContext.RequestServices?.GetService(typeof(IAdminRoleResolver)) as IAdminRoleResolver;
-        var role = resolver?.Resolve(context.HttpContext.User);
+        var accessor = context.HttpContext.RequestServices?.GetService(typeof(IAdminIdentityAccessor)) as IAdminIdentityAccessor;
+        var identity = accessor?.Get() ?? new AdminIdentity();
 
-        // 认不出角色就拒绝：宁可让运维去配别名，也不能「没配好就当管理员放行」
-        if (role == null)
+        if (!identity.IsAuthenticated)
         {
-            context.Result = Deny("当前账号未授予后台角色，请联系管理员分配「管理员 / 运维 / 只读」之一");
+            context.Result = Failure(401, "未登录或登录已过期，请先登录后台账号");
             return Task.CompletedTask;
         }
 
-        if (!AdminPermissionMatrix.Allows(role.Value, Operation))
+        // 认不出角色就拒绝：宁可让运维去配别名，也不能「没配好就当管理员放行」
+        if (identity.Role == null)
         {
-            context.Result = Deny($"角色「{AdminRoleInfo.DisplayName(role.Value)}」无权{AdminOperationInfo.DisplayName(Operation)}");
+            context.Result = Failure(403, $"账号「{identity.Name}」未授予后台角色，请联系管理员分配「管理员 / 运维 / 只读」之一");
+            return Task.CompletedTask;
+        }
+
+        if (!AdminPermissionMatrix.Allows(identity.Role.Value, Operation))
+        {
+            context.Result = Failure(403, $"角色「{AdminRoleInfo.DisplayName(identity.Role.Value)}」无权{AdminOperationInfo.DisplayName(Operation)}");
         }
 
         return Task.CompletedTask;
     }
 
-    /// <summary>403 + 统一信封（<c>code=403</c>、<c>data=null</c>）。</summary>
-    /// <param name="message">拒绝原因。</param>
+    /// <summary>失败 + 统一信封（<c>code</c> 等于 HTTP 状态码、<c>data=null</c>）。</summary>
+    /// <param name="statusCode">HTTP 状态码（401 / 403）。</param>
+    /// <param name="message">给运维看的原因。</param>
     /// <returns>结果对象。</returns>
-    private static ObjectResult Deny(String message) => new(new ApiResponse
+    private static ObjectResult Failure(Int32 statusCode, String message) => new(new ApiResponse
     {
-        Code = 403,
+        Code = statusCode,
         Message = message,
         Data = null,
     })
-    { StatusCode = 403 };
+    { StatusCode = statusCode };
 }

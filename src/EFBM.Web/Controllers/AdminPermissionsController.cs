@@ -13,23 +13,27 @@ namespace EFBM.Web.Controllers;
 [Route("api/admin/permissions")]
 public sealed class AdminPermissionsController : AdminControllerBase
 {
-    private readonly IAdminRoleResolver _roles;
-
     /// <summary>构造权限查询接口。</summary>
-    /// <param name="roles">角色解析器。</param>
-    public AdminPermissionsController(IAdminRoleResolver roles)
-        => _roles = roles ?? throw new ArgumentNullException(nameof(roles));
+    /// <param name="identity">当前请求身份。</param>
+    public AdminPermissionsController(IAdminIdentityAccessor identity)
+        : base(identity)
+    {
+    }
 
     /// <summary>读取当前账号的角色、可执行操作与完整权限矩阵。</summary>
-    /// <returns>角色、允许的操作、全量矩阵与每个操作的最低角色。</returns>
+    /// <returns>角色、允许的操作、全量矩阵与每个操作的最低角色；未登录返回 401。</returns>
     [HttpGet]
     public ObjectResult Get()
     {
-        var role = _roles.Resolve(User);
+        // 本接口只有登录要求，所以自己判未登录（其余动作由 [RequireAdminOperation] 统一处理）
+        if (!Identity.IsAuthenticated) return Failure(401, "未登录或登录已过期，请先登录后台账号");
+
+        var role = Identity.Role;
+        var name = Identity.Name;
 
         return Success(new
         {
-            user = OperatorName,
+            user = name,
             role = role == null ? null : AdminRoleInfo.Name(role.Value),
             roleName = role == null ? "未授权" : AdminRoleInfo.DisplayName(role.Value),
             allowed = role == null ? Array.Empty<String>() : Array.ConvertAll(AdminPermissionMatrix.AllowedFor(role.Value), op => op.ToString()),

@@ -284,7 +284,15 @@ redis-cli -n 5 XRANGE efbm:events - + COUNT 1
 
 ### 4.7 后台接口（P4 已交付，页面未完）
 
-后台接口挂在 `/api/admin/` 下，沿用 `{code,message,data}` 响应体，**必须先用 Cube 账号登录**（未登录返回 401 并跳 `/Admin/User/Login?ReturnUrl=...`，已实测）。
+后台接口挂在 `/api/admin/` 下，沿用 `{code,message,data}` 响应体，**必须先用 Cube 账号登录**（浏览器登录 `/Admin/User/Login`，默认账号 `admin`）。
+
+未登录返回 **JSON 信封 401**（`{"code":401,"message":"未登录或登录已过期，请先登录后台账号","data":null}`），不是 302 跳登录页——接口是给页面和脚本调的，跳转只会把 401 变成一页 HTML。用 curl 验证时，先在浏览器登录，从开发者工具复制 `token-<应用名>` 这个 Cookie（形如 `token-EFBM.Web=eyJ...`）再带上：
+
+```bash
+curl -s -H "Cookie: token-EFBM.Web=eyJ..." http://127.0.0.1:5000/api/admin/permissions
+```
+
+> 登录表单的口令是页面用 RSA 公钥（`#pkey_container`）加密后提交的，脚本化登录必须复刻这一步，否则会被当成密码错误。
 
 | 方法与路径 | 用途 |
 | --- | --- |

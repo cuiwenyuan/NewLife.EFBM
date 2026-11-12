@@ -11,6 +11,11 @@ public interface IAdminRoleResolver
     /// <param name="user">当前用户主体；未登录时为 <c>null</c>。</param>
     /// <returns>角色；用户没有任何可识别角色时返回 <c>null</c>。</returns>
     AdminRole? Resolve(ClaimsPrincipal user);
+
+    /// <summary>按用户名查 <c>EFBM:Admin:Users</c> 里的直接映射。</summary>
+    /// <param name="name">登录名。</param>
+    /// <returns>配置里点名时返回角色，否则 <c>null</c>。</returns>
+    AdminRole? ResolveByName(String name);
 }
 
 /// <summary>按「角色名 / 角色标识 → 三角色」的别名表解析用户角色。</summary>
@@ -101,6 +106,10 @@ public sealed class AdminRoleResolver : IAdminRoleResolver
     }
 
     /// <inheritdoc />
+    public AdminRole? ResolveByName(String name)
+        => !String.IsNullOrWhiteSpace(name) && _users.TryGetValue(name.Trim(), out var role) ? role : null;
+
+    /// <inheritdoc />
     public AdminRole? Resolve(ClaimsPrincipal user)
     {
         if (user == null) return null;
@@ -108,7 +117,7 @@ public sealed class AdminRoleResolver : IAdminRoleResolver
         // 用户名映射优先：初始超管的 RoleIDs 是空的，票据里根本没有角色声明
         var name = user.Identity?.Name;
         if (String.IsNullOrWhiteSpace(name)) name = user.FindFirst(ClaimTypes.Name)?.Value;
-        if (!String.IsNullOrWhiteSpace(name) && _users.TryGetValue(name.Trim(), out var byName)) return byName;
+        if (ResolveByName(name) is { } byName) return byName;
 
         AdminRole? best = null;
         foreach (var identity in user.Identities)

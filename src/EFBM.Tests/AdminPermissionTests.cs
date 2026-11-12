@@ -298,12 +298,45 @@ public class AdminPermissionTests
         Assert.Null(method.GetCustomAttribute<RequireAdminOperationAttribute>());
     }
 
+    [Fact(DisplayName = "接口标注_后台控制器不再用Authorize_登录判定在动作过滤器里")]
+    public void Controllers_DoNotUseAuthorize()
+    {
+        // Cube 的登录用户要到 UseCube 内部才还原，授权中间件必须早于 UseCube（D-30），
+        // 结果就是 [Authorize] 永远看到未认证请求——登录了也 401。登录判定改在过滤器里，
+        // 这里守住「不能有人把 [Authorize] 加回来」。
+        var type = typeof(AdminControllerBase);
+        Assert.Null(type.GetCustomAttribute<Microsoft.AspNetCore.Authorization.AuthorizeAttribute>());
+    }
+
+    [Fact(DisplayName = "身份访问器_没有Cube用户体系时_退回ASP.NET主体")]
+    public void Accessor_FallsBackToPrincipal()
+    {
+        var http = new DefaultHttpContext();
+        http.User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.Name, "admin")], "Cookies"));
+        var accessor = new CubeAdminIdentityAccessor(new HttpContextAccessor { HttpContext = http }, new AdminRoleResolver());
+
+        var identity = accessor.Get();
+
+        Assert.True(identity.IsAuthenticated);
+        Assert.Equal("admin", identity.Name);
+    }
+
+    [Fact(DisplayName = "身份访问器_未登录_返回未认证身份")]
+    public void Accessor_Anonymous()
+    {
+        var http = new DefaultHttpContext();
+        var accessor = new CubeAdminIdentityAccessor(new HttpContextAccessor { HttpContext = http }, new AdminRoleResolver());
+
+        Assert.False(accessor.Get().IsAuthenticated);
+        Assert.False(new CubeAdminIdentityAccessor(new HttpContextAccessor(), new AdminRoleResolver()).Get().IsAuthenticated);
+    }
+
     // ── 四、权限查询接口的返回内容 ─────────────────────────────────────────────
 
     [Fact(DisplayName = "权限接口_管理员_返回角色与全量矩阵")]
     public void Permissions_Admin_ReturnsMatrix()
     {
-        using var json = CallPermissions(AdminRole.Admin);
+        using var json = CallPermissions(new AdminIdentity { Name = "admin", Role = AdminRole.Admin });
         var root = json.RootElement;
 
         Assert.Equal(0, root.GetProperty("code").GetInt32());
@@ -327,26 +360,37 @@ public class AdminPermissionTests
         }
     }
 
-    [Fact(DisplayName = "权限接口_认不出角色_返回空权限而不是报错")]
+    [Fact(DisplayName = "权限接口_登录但没角色_返回空权限而不是报错")]
     public void Permissions_NoRole_ReturnsEmptyAllowed()
     {
-        using var json = CallPermissions(null);
+        using var json = CallPermissions(new AdminIdentity { Name = "zhangsan" });
         var data = json.RootElement.GetProperty("data");
 
+        Assert.Equal("zhangsan", data.GetProperty("user").GetString());
         Assert.Equal(System.Text.Json.JsonValueKind.Null, data.GetProperty("role").ValueKind);
         Assert.Equal("未授权", data.GetProperty("roleName").GetString());
         Assert.Equal(0, data.GetProperty("allowed").GetArrayLength());
     }
 
-    /// <summary>以指定角色调用一次权限接口，返回解析后的 JSON。</summary>
-    /// <param name="role">要模拟的角色；<c>null</c> 表示认不出角色。</param>
+    [Fact(DisplayName = "权限接口_未登录_返回401而不是空权限")]
+    public void Permissions_Anonymous_Returns401()
+    {
+        using var json = CallPermissions(new AdminIdentity());
+        var root = json.RootElement;
+
+        Assert.Equal(401, root.GetProperty("code").GetInt32());
+        Assert.Contains("未登录", root.GetProperty("message").GetString());
+    }
+
+    /// <summary>以指定身份调用一次权限接口，返回解析后的 JSON。</summary>
+    /// <param name="identity">要模拟的身份。</param>
     /// <returns>可查询的 JSON 文档。</returns>
-    private static System.Text.Json.JsonDocument CallPermissions(AdminRole? role)
+    private static System.Text.Json.JsonDocument CallPermissions(AdminIdentity identity)
     {
         var http = new DefaultHttpContext();
-        if (role != null) http.User = Principal(ClaimTypes.Role, AdminRoleInfo.Name(role.Value));
+        if (identity.IsAuthenticated) http.User = Principal(ClaimTypes.Name, identity.Name);
 
-        var controller = new AdminPermissionsController(new StubResolver(role))
+        var controller = new AdminPermissionsController(new StubIdentity(identity))
         {
             ControllerContext = new ControllerContext { HttpContext = http },
         };
@@ -358,10 +402,23 @@ public class AdminPermissionTests
 
     // ── 五、过滤器实际行为 ────────────────────────────────────────────────────
 
-    [Fact(DisplayName = "鉴权过滤_未授予角色_返回403统一信封")]
+    [Fact(DisplayName = "鉴权过滤_未登录_返回401统一信封")]
+    public void Filter_Anonymous_Returns401()
+    {
+        var result = RunFilter(new AdminIdentity(), AdminOperation.QueryEvents);
+
+        var obj = Assert.IsType<ObjectResult>(result);
+        var body = Assert.IsType<ApiResponse>(obj.Value);
+        Assert.Equal(401, obj.StatusCode);
+        Assert.Equal(401, body.Code);
+        Assert.Contains("未登录", body.Message);
+        Assert.Null(body.Data);
+    }
+
+    [Fact(DisplayName = "鉴权过滤_已登录但没授予角色_返回403统一信封")]
     public void Filter_NoRole_Returns403()
     {
-        var result = RunFilter(null, AdminOperation.QueryEvents);
+        var result = RunFilter(new AdminIdentity { Name = "zhangsan" }, AdminOperation.QueryEvents);
 
         var body = Assert.IsType<ApiResponse>(Assert.IsType<ObjectResult>(result).Value);
         Assert.Equal(403, Assert.IsType<ObjectResult>(result).StatusCode);
@@ -373,7 +430,7 @@ public class AdminPermissionTests
     [Fact(DisplayName = "鉴权过滤_只读角色执行清理_返回403并说明缺哪项权限")]
     public void Filter_ViewerCannotCleanup_Returns403()
     {
-        var result = RunFilter(AdminRole.Viewer, AdminOperation.CleanupEvents);
+        var result = RunFilter(new AdminIdentity { Name = "auditor", Role = AdminRole.Viewer }, AdminOperation.CleanupEvents);
 
         var obj = Assert.IsType<ObjectResult>(result);
         var body = Assert.IsType<ApiResponse>(obj.Value);
@@ -388,7 +445,7 @@ public class AdminPermissionTests
     [InlineData(AdminRole.Operator, AdminOperation.ExportEvents)]
     [InlineData(AdminRole.Admin, AdminOperation.CleanupEvents)]
     public void Filter_Allowed_Passes(AdminRole role, AdminOperation operation)
-        => Assert.Null(RunFilter(role, operation));
+        => Assert.Null(RunFilter(new AdminIdentity { Name = "tester", Role = role }, operation));
 
     /// <summary>构造一个带角色的登录主体。</summary>
     /// <param name="type">声明类型。</param>
@@ -398,17 +455,16 @@ public class AdminPermissionTests
         => new(new ClaimsIdentity([new Claim(type, value)], "Cookies"));
 
     /// <summary>跑一次过滤器，返回它写入的拦截结果（放行时为 <c>null</c>）。</summary>
-    /// <param name="role">解析器要返回的角色；<c>null</c> 表示认不出角色。</param>
+    /// <param name="identity">模拟的当前身份。</param>
     /// <param name="operation">被保护的操作。</param>
     /// <returns>拦截结果或 <c>null</c>。</returns>
-    private static IActionResult RunFilter(AdminRole? role, AdminOperation operation)
+    private static IActionResult RunFilter(AdminIdentity identity, AdminOperation operation)
     {
         var services = new ServiceCollection()
-            .AddSingleton<IAdminRoleResolver>(new StubResolver(role))
+            .AddSingleton<IAdminIdentityAccessor>(new StubIdentity(identity))
             .BuildServiceProvider();
 
         var http = new DefaultHttpContext { RequestServices = services };
-        if (role != null) http.User = Principal(ClaimTypes.Role, AdminRoleInfo.Name(role.Value));
 
         var actionContext = new ActionContext(http, new RouteData(), new ActionDescriptor());
         var context = new AuthorizationFilterContext(actionContext, []);
@@ -418,9 +474,9 @@ public class AdminPermissionTests
         return context.Result;
     }
 
-    /// <summary>固定返回指定角色的解析器替身（真实解析逻辑已在上面的用例单独覆盖）。</summary>
-    private sealed class StubResolver(AdminRole? role) : IAdminRoleResolver
+    /// <summary>固定返回指定身份的访问器替身（真实解析逻辑已在上面的用例单独覆盖）。</summary>
+    private sealed class StubIdentity(AdminIdentity identity) : IAdminIdentityAccessor
     {
-        public AdminRole? Resolve(ClaimsPrincipal user) => role;
+        public AdminIdentity Get() => identity;
     }
 }
