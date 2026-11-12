@@ -1,4 +1,3 @@
-using EFBM.Core.Security;
 
 namespace EFBM.Core;
 
@@ -100,8 +99,8 @@ public class EfbmOptions
     /// <summary>是否在启动时探测 Redis 版本（默认关闭，避免骨架阶段依赖 Redis 在线）。</summary>
     public Boolean ProbeRedisOnStartup { get; set; }
 
-    /// <summary>后台三角色鉴权配置（FR-14）：现场角色名 → 本系统角色的别名表。</summary>
-    public AdminOptions Admin { get; set; } = new();
+    /// <summary>启动时补齐「运维 / 只读」内置角色的后台菜单授权（FR-14）；现场手工调整过角色可关闭。</summary>
+    public Boolean SeedAdminRoles { get; set; } = true;
 
     /// <summary>Beta 引导配置：后台发放页面（P4）上线前的临时凭据来源，默认关闭。</summary>
     public BetaOptions Beta { get; set; } = new();
@@ -141,9 +140,6 @@ public class EfbmOptions
 
         RequestLog ??= new RequestLogOptions();
         RequestLog.ValidateOrThrow();
-
-        Admin ??= new AdminOptions();
-        Admin.ValidateOrThrow();
 
         if (!IsInternet()) return;
 

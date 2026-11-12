@@ -19,7 +19,7 @@
 | Beta 凭据引导 | ✅ | 配置驱动自动建一台设备 + 一套凭据，后台发放页面未上线也能联调 |
 | 消费入库（P3 已完成） | ✅ | 开启 Redis 后，常驻消费者 `PersistConsumerService` 把 Stream 消息落进 `DeviceEventRaw` / `WorkOrder` / `ProductionRecord` / `DeviceStatusLog` / `FaultRecord` 等业务表，重复投递幂等（只 1 行 + `RepeatCount`）；`/health` 的 `consumer` 段可见 `taken/persisted/duplicates/deadLettered` |
 | 日志回放补录 `--replay` | ✅ | 纯日志模式没有消费者，用 `dotnet EFBM.Web.dll --replay <日志文件或目录>` 把历史日志补录进库，幂等由 `EventKey` 兜住，可重复跑 |
-| 后台管理接口（P4 已完成） | ✅ | `api/admin/events`（检索 / 原文 / 手动标记 / 单条重放）、`api/admin/deadletters`（列表 / 详情 / 重放）；需 Cube 账号登录，未登录 401；用法见 §4.7 |
+| 后台管理页面（P4 已完成） | ✅ | 报文 / 死信 / 字典 / 设备 / 凭据 / 生产记录 / 工单 / 故障 / 状态流水 + 数据维护页，全部是魔方原生页面；需 Cube 账号登录，权限按角色 × 菜单权限位；用法见 §4.7 |
 | 后台页面（P4 进行中） | ❌ | 报文列表、原文查看、死信页、状态字典维护等 Cube 页面尚未交付，当前用接口或日志排查 |
 
 ### 1.1 一次请求的三种落点
@@ -282,82 +282,83 @@ redis-cli -n 5 XINFO GROUPS efbm:events  # 消费者组与 lag（消费未开始
 redis-cli -n 5 XRANGE efbm:events - + COUNT 1
 ```
 
-### 4.7 后台接口（P4 已交付，页面未完）
+### 4.7 后台页面（P4 已交付，全部是魔方原生页面）
 
-后台接口挂在 `/api/admin/` 下，沿用 `{code,message,data}` 响应体，**必须先用 Cube 账号登录**（浏览器登录 `/Admin/User/Login`，默认账号 `admin`）。
+后台不是自建单页，而是标准的魔方后台：控制器继承 `ReadOnlyEntityController` / `EntityController`，
+列表、详情、搜索、分页、导出都由魔方内置模板渲染，菜单在启动时按控制器自动生成。
 
-未登录返回 **JSON 信封 401**（`{"code":401,"message":"未登录或登录已过期，请先登录后台账号","data":null}`），不是 302 跳登录页——接口是给页面和脚本调的，跳转只会把 401 变成一页 HTML。用 curl 验证时，先在浏览器登录，从开发者工具复制 `token-<应用名>` 这个 Cookie（形如 `token-EFBM.Web=eyJ...`）再带上：
+浏览器打开 `http://<host>:5000/Admin/User/Login`，用 Cube 账号登录（默认 `admin` / `admin`，**上线前必须改**）。
+未登录访问任何后台页面都会跳回登录页，权限不够则显示魔方的「无权访问」页。
 
-```bash
-curl -s -H "Cookie: token-EFBM.Web=eyJ..." http://127.0.0.1:5000/api/admin/permissions
-```
-
-> 登录表单的口令是页面用 RSA 公钥（`#pkey_container`）加密后提交的，脚本化登录必须复刻这一步，否则会被当成密码错误。
-
-| 方法与路径 | 用途 |
-| --- | --- |
-| `GET api/admin/events` | 原始报文检索：`deviceId` / `event` / `eventKey` / `processStatus` / `handleStatus` / `from` / `to` / `keyword` + `page` / `pageSize`（上限 200） |
-| `GET api/admin/events/{id}` | 原文详情：`rawJson` / `dataJson` / `extJson` / `unknownFields` / `parseWarning` |
-| `POST api/admin/events/{id}/mark` | 手动标记：`{"handleStatus":1,"remark":"已核对"}`，写处理人与时间，不改报文 |
-| `POST api/admin/events/{id}/replay` | 单条重放入流：新 `messageId` + `replayOf` 指向原消息，`eventKey` 与原文不变 |
-| `GET api/admin/deadletters` | 死信检索：`eventKey` / `messageId` / `replayStatus` / `from` / `to` + 分页 |
-| `POST api/admin/deadletters/{id}/replay` | 死信重放：成功才回写 `ReplayStatus` / `ReplayAt` / `ReplayBy` |
-| `POST api/admin/events/replay-range` | 按接收时间批量重放：`{"from":"...","to":"...","limit":500}`；默认 500、硬上限 2000，返回 `matched` / `attempted` / `succeeded` / `failed` / `truncated` |
-| `POST api/admin/events/export?from=...&to=...` | 按接收时间导出 CSV（UTF-8 BOM，Excel 直开不乱码），返回 `ticketId` / `rowCount` / `sha256` / `expiresAt`；单次上限 20 万条 |
-| `GET api/admin/events/export/{ticketId}/download` | 下载导出文件 |
-| `POST api/admin/events/cleanup` | **凭导出凭证**清理：`{"ticketId":"..."}`；无凭证 / 过期 / 文件被改动一律 409 拒绝，只删导出过的部分 |
-| `GET api/admin/audits` | 审计查询：`action` / `operator` / `from` / `to` / `success` + `page` / `pageSize`（上限 200），最低运维 |
-
-注意五点：
-
-1. **纯日志模式不能重放**：`EFBM:RedisEnabled=false` 时没有任何消费者，接口返回 409 并提示改用 `--replay` 补录（见 §4.4）。
-2. **重放不覆盖数据**：`eventKey` 与原报文一致，消费端命中幂等只累加 `RepeatCount`；死信（`processStatus=2`）重放后会重新执行 handler 并收敛为落库一次。
-3. **接口本身不下发凭据**：设备凭据仍走配置引导（§6），后台凭据发放页面在 P4 后续交付。
-4. **危险操作要带确认头**：重放（单条 / 按范围 / 死信）与清理必须带 `X-Confirm: <动作名>`，例如 `X-Confirm: CleanupEvents`、`X-Confirm: ReplayEvent`、`X-Confirm: ReplayDeadLetter`；缺头或值不对返回 400。这是服务端强制的二次确认，页面弹窗只是配合它，不是替代品。
-5. **清理必须先导出**：凭证默认 30 分钟有效、用后即废，只保存在进程内存——重启后旧凭证失效，需要重新导出。导出文件落在 `EFBM:ExportDirectory`（默认 `logs/export`，相对路径以 DLL 所在目录为基准），凭证会校验文件 SHA-256，**拷走文件后不要改动它**，否则清理会被拒绝。
-
-### 4.8 后台角色与权限矩阵（AUTH-3a，P4 已交付）
-
-后台不是「登录就能干所有事」：每个接口动作都标了最低角色，权限不够返回 **403**（`{code:403,message:"角色「只读」无权清理原始报文"}`），未登录仍是 401。
-
-| 动作 | 最低角色 | 说明 |
+| 路径 | 能做什么 | 需要的权限位 |
 | --- | --- | --- |
-| 检索报文 / 看原文 / 查死信 / 看死信详情 | 只读 | 全部只读接口 |
-| 标记处理状态 / 重放报文 / 重放死信 / 导出 CSV / 下载导出文件 | 运维 | 排障必需的写操作，均不改原始报文内容 |
-| **清理原始报文** | **管理员** | 唯一会删数据的操作，仍须凭导出凭证（§4.7 第 4 条） |
+| `/Admin/DeviceEventRaw` | 原始报文列表（按设备 / 事件 / 处理状态 / 接收时间检索）、看原文与解析结果、导出 CSV / Excel | 查看 |
+| `/Admin/DeadLetter` | 死信列表与详情（错误信息、`ReplayStatus`） | 查看 |
+| `/Admin/EventMaintenance` | **数据维护**：重放单条、按范围批量重放、重放死信、标记处理状态、导出（生成清理凭证）、下载 CSV、凭凭证清理 | 查看；重放 / 标记 = 修改；清理 = 删除 |
+| `/Admin/StatusDict` | 状态字典增删改查 | 查看 / 新增 / 修改 / 删除 |
+| `/Admin/Device` | 设备台账增删改查（启停就是改 `Enabled`） | 查看 / 新增 / 修改 / 删除 |
+| `/Admin/AppCredential` | 接入凭据管理（**列表不显示 AppSecret**，只在编辑页可见） | 查看 / 新增 / 修改 / 删除 |
+| `/Admin/ProductionRecord` | 生产记录（只读，可按工单 / 箱号 / 设备 / 时间检索与导出） | 查看 |
+| `/Admin/WorkOrder` | 生产工单（只读） | 查看 |
+| `/Admin/FaultRecord` | 故障记录（只读） | 查看 |
+| `/Admin/DeviceStatusLog` | 设备状态流水（只读） | 查看 |
+| `/Admin/Log` | 系统日志，审计记录也在这里（分类 `EFBM后台`） | 查看 |
+| `/Admin/Role`、`/Admin/User` | 角色与用户管理（魔方自带） | 查看 / 修改 |
 
-角色从哪儿来，按优先级试三层（`AdminRoleResolver`）：
+数据维护页的几个动作：
 
-1. **`EFBM:Admin:Users`**：用户名直接定角色。Cube 的初始超管 `admin` 的 `RoleIDs` 是空的、登录票据里没有角色声明，所以默认配了 `"admin": "admin"`——不配这一条，刚装好只有超管进得去后台却处处 403。
-2. **登录票据里的角色声明**（`role` / `roles` / `Role` / `RoleIDs` 等写法，逗号分隔的多值取权限最高的）。
-3. **`EFBM:Admin:RoleAliases`**：把现场自建的组名映射过来，如 `"车间主任": "viewer"`、`"设备管理员": "admin"`。内置已认「管理员 / 系统管理员 / 运维 / 操作员 / 只读 / 高级用户」等常见写法。
+1. **重放单条**：填报文 ID → 生成新 `MessageId`、`replayOf` 指向原消息，`eventKey` 不变；消费端命中幂等只累加 `RepeatCount`。
+2. **按范围重放**：起止接收时间 + 条数上限（默认 500、硬上限 2000），返回命中 / 尝试 / 成功 / 失败 / 是否截断。
+3. **重放死信**：成功才回写 `ReplayStatus` / `ReplayAt` / `ReplayBy`。
+4. **导出**：CSV（UTF-8 BOM，Excel 直开不乱码），返回凭证、条数、文件路径与 SHA-256，凭证默认 30 分钟有效。
+5. **清理**：必须凭导出凭证，只删 `Id ≤ 导出时最大主键` 的报文，导出后新到的数据保留；**没有任何自动清理任务**。
 
-三层都没命中就直接 403，**绝不猜测**（猜错等于把删数据的权限给了不相干的人）。值写错（如 `"admin": "boss"`）会让服务启动自检失败并指明是哪一条。
+> **纯日志模式不能重放**：`EFBM:RedisEnabled=false` 时没有消费者，重放会直接拒绝并提示改用 `--replay` 补录（见 §4.4）。
 
-排查「我有角色为什么还是 403」：
+### 4.8 角色与权限（AUTH-3a，P4 已交付）
 
-```bash
-# 看当前账号被认成什么角色、能做哪些事（未授权的账号返回 role=null、allowed=[]）
-curl -b cookie.txt http://127.0.0.1:5000/api/admin/permissions | jq '{user,role,allowed}'
-```
+权限完全按魔方的模型走：**菜单 × 权限位**。每个菜单在 `Menu.Permission` 里声明自己有哪些权限项
+（1 查看 / 2 新增 / 4 修改 / 8 删除），角色在 `Role.Permission` 里按 `菜单ID#权限位` 授权，用户在「用户」页挂角色。
+代码侧只在动作上标 `[EntityAuthorize(PermissionFlags.Xxx)]`，判定由魔方的全局授权过滤器完成。
 
-返回里还有 `matrix`（三角色全量矩阵）与 `operations`（每个动作的最低角色），与上表同源——页面做菜单收敛也读它，不再手写一份。
+内置三个角色：
+
+| 角色 | 权限 | 适合谁 |
+| --- | --- | --- |
+| 管理员（系统角色） | 全部菜单的全部权限，含后续新增 | 系统负责人；魔方启动时自动授权，不用手工配 |
+| 运维 | 查看 + 修改（`菜单#5`） | 现场工程师：查报文、标记、重放、导出，**不能清理** |
+| 只读 | 仅查看（`菜单#1`） | 审计、访客、投屏：只能看，点不动任何写操作 |
+
+「运维」「只读」由 `AdminRoleSeed` 在每次启动时按当前菜单重算，新增菜单自动纳入；
+现场在「角色」页调过权限后如果不想被覆盖，把 `EFBM:SeedAdminRoles` 设为 `false`。
+
+给账号授权只要两步：
+
+1. 打开 `/Admin/Role`，编辑「运维」或「只读」，在权限树里勾上对应菜单的权限项（内置角色已预置，一般不用动）。
+2. 打开 `/Admin/User`，编辑账号，把「角色」选成「运维」或「只读」，保存。
+
+实测矩阵（本地 SQLite + 真实登录态）：
+
+| 账号角色 | 报文列表 | 数据维护页 | 重放 | 清理 |
+| --- | --- | --- | --- | --- |
+| 管理员 | 200 | 200 | 进入业务（409 记录不存在） | 进入业务（409 凭证不存在） |
+| 运维 | 200 | 200 | 进入业务（409 记录不存在） | **403「需要 删除 权限」** |
+| 只读 | 200 | 200 | **403「需要 修改 权限」** | 403 |
 
 ### 4.9 操作审计（AUTH-3b，P4 已交付）
 
-后台的写操作都会留痕：标记、重放、按范围重放、导出、清理，成功失败都记一条（失败的也在，因为「谁试过什么」同样是证据）。日志写进 Cube 的 `Log` 表，因此**后台「日志」页也能直接看到**，`Category` 固定为 `EFBM后台`。
+后台的写操作（标记、重放、按范围重放、导出、清理）都会记一条魔方 `Log`，`Category` 固定为 `EFBM后台`，
+成功失败都记——失败的也要留，「谁试过什么」同样是证据。直接打开 `/Admin/Log` 按分类筛选即可，
+不需要另开一套审计页面。
 
-```bash
-# 最近 10 条，只看失败的
-curl -s -H "Cookie: token-EFBM.Web=eyJ..." "http://127.0.0.1:5000/api/admin/audits?success=false&pageSize=10" | jq '.data.items[] | {action,operator,summary,time}'
-```
+字段对应：`Action` 动作、`UserName` 操作人、`CreateIP` 来源 IP、`LinkID` 目标主键（报文 / 死信 ID）、
+`Success` 成败、`Ex4` 结果摘要（删除条数、新消息 ID 或失败原因）、`TraceId` 与服务日志对齐。
 
-字段含义：`action` 动作、`operator` 操作人、`ip` 来源 IP、`targetId` 目标主键（报文 / 死信 ID）、`success` 成败、`summary` 结果摘要（删除条数、新消息 ID 或失败原因）、`remark` 参数摘要（时间范围、条数上限等）、`traceId` 与服务日志对齐用。
+写日志失败只落应用日志，不会让已经执行的清理 / 重放回滚成「不知道做没做」。
 
-审计写入**不会拖垮业务**：写日志失败只打应用日志，不会让已经执行的清理/重放回滚成「不知道做没做」。
-
-
----
+**二次确认在服务端强制**：数据维护页的重放 / 按范围重放 / 重放死信 / 清理都要求请求头
+`X-Confirm: <动作名>`（如 `X-Confirm: ReplayEvent`、`X-Confirm: Cleanup`），缺头返回 400。
+页面上的确认弹窗只是配合它，脚本绕过弹窗也绕不过服务端。
 
 ## 5. 文本日志格式
 

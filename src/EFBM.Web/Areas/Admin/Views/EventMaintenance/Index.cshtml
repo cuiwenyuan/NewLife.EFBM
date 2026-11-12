@@ -1,0 +1,154 @@
+@{
+    // 与魔方自带的 _ViewStart 保持一致：布局随主题走，默认 ACE
+    var theme = NewLife.Cube.CubeSetting.Current.Theme;
+    if (String.IsNullOrEmpty(theme)) theme = "ACE";
+    Layout = "~/Views/" + theme + "/_Layout.cshtml";
+    ViewBag.Title = "数据维护";
+}
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card card-primary card-outline">
+            <div class="card-header"><h3 class="card-title"><i class="fa fa-reply"></i> 重放单条报文</h3></div>
+            <div class="card-body">
+                <p class="text-muted">把已落库的报文重新写入共享流，生成新消息 ID；<code>EventKey</code> 不变，消费端只累加重复次数。</p>
+                <div class="form-group">
+                    <label>报文 ID</label>
+                    <input id="replay-id" type="number" class="form-control" placeholder="例如 123" />
+                </div>
+                <button class="btn btn-primary" onclick="replayEvent()"><i class="fa fa-paper-plane"></i> 重放</button>
+            </div>
+        </div>
+
+        <div class="card card-warning card-outline">
+            <div class="card-header"><h3 class="card-title"><i class="fa fa-calendar"></i> 按范围批量重放</h3></div>
+            <div class="card-body">
+                <p class="text-muted">按接收时间补数，单次上限默认 500、最多 2000；超出会截断并在结果里说明。</p>
+                <div class="form-row">
+                    <div class="form-group col"><label>起始</label><input id="range-from" type="datetime-local" class="form-control" /></div>
+                    <div class="form-group col"><label>结束</label><input id="range-to" type="datetime-local" class="form-control" /></div>
+                </div>
+                <div class="form-group"><label>条数上限（0 = 默认 500）</label><input id="range-limit" type="number" class="form-control" value="0" /></div>
+                <button class="btn btn-warning" onclick="replayRange()"><i class="fa fa-play"></i> 开始重放</button>
+            </div>
+        </div>
+
+        <div class="card card-danger card-outline">
+            <div class="card-header"><h3 class="card-title"><i class="fa fa-exclamation-triangle"></i> 重放死信</h3></div>
+            <div class="card-body">
+                <p class="text-muted">死信重放后会重新执行处理器，成功即从死信队列收敛。</p>
+                <div class="form-group"><label>死信 ID</label><input id="dead-id" type="number" class="form-control" /></div>
+                <button class="btn btn-danger" onclick="replayDeadLetter()"><i class="fa fa-redo"></i> 重放</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card card-info card-outline">
+            <div class="card-header"><h3 class="card-title"><i class="fa fa-tag"></i> 标记处理状态</h3></div>
+            <div class="card-body">
+                <p class="text-muted">只改处理状态与备注，不动原文。</p>
+                <div class="form-group"><label>报文 ID</label><input id="mark-id" type="number" class="form-control" /></div>
+                <div class="form-group">
+                    <label>处理状态</label>
+                    <select id="mark-status" class="form-control">
+                        <option value="0">未处理</option>
+                        <option value="1">已处理</option>
+                        <option value="2">已忽略</option>
+                    </select>
+                </div>
+                <div class="form-group"><label>备注</label><input id="mark-remark" type="text" class="form-control" placeholder="例如：现场已确认，无需补数" /></div>
+                <button class="btn btn-info" onclick="mark()"><i class="fa fa-check"></i> 标记</button>
+            </div>
+        </div>
+
+        <div class="card card-success card-outline">
+            <div class="card-header"><h3 class="card-title"><i class="fa fa-file-export"></i> 导出（生成清理凭证）</h3></div>
+            <div class="card-body">
+                <p class="text-muted">导出 CSV（UTF-8 BOM）并生成一次性凭证；<b>清理必须凭这个凭证</b>，且只删导出过的部分。</p>
+                <div class="form-row">
+                    <div class="form-group col"><label>起始</label><input id="export-from" type="datetime-local" class="form-control" /></div>
+                    <div class="form-group col"><label>结束</label><input id="export-to" type="datetime-local" class="form-control" /></div>
+                </div>
+                <button class="btn btn-success" onclick="exportCsv()"><i class="fa fa-download"></i> 导出</button>
+                <div id="export-result" class="mt-3"></div>
+            </div>
+        </div>
+
+        <div class="card card-danger card-outline">
+            <div class="card-header"><h3 class="card-title"><i class="fa fa-trash"></i> 凭凭证清理</h3></div>
+            <div class="card-body">
+                <p class="text-muted">只删「Id ≤ 导出时最大主键」的报文；凭证一次性、默认 30 分钟过期。</p>
+                <div class="form-group"><label>导出凭证</label><input id="cleanup-ticket" type="text" class="form-control" /></div>
+                <button class="btn btn-danger" onclick="cleanup()"><i class="fa fa-trash-alt"></i> 清理</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header"><h3 class="card-title"><i class="fa fa-terminal"></i> 执行结果</h3></div>
+    <div class="card-body"><pre id="result" class="mb-0" style="max-height: 320px; overflow: auto;">（尚未执行）</pre></div>
+</div>
+
+<script>
+    function show(ok, text) {
+        const el = document.getElementById('result');
+        el.textContent = (ok ? '✅ ' : '❌ ') + text;
+        el.style.color = ok ? '#1e7e34' : '#bd2130';
+    }
+
+    async function call(action, body, confirmName) {
+        const headers = { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest' };
+        if (confirmName) headers['X-Confirm'] = confirmName;
+
+        const res = await fetch('/Admin/EventMaintenance/' + action, {
+            method: 'POST',
+            headers,
+            body: new URLSearchParams(body),
+        });
+        const json = await res.json();
+        show(res.ok && json.code === 0, json.message + (json.data ? '\n' + JSON.stringify(json.data, null, 2) : ''));
+        return json;
+    }
+
+    const val = id => document.getElementById(id).value;
+
+    function replayEvent() {
+        if (!confirm('确认重放这条报文？')) return;
+        call('ReplayEvent', { id: val('replay-id') }, 'ReplayEvent');
+    }
+
+    function replayRange() {
+        if (!confirm('确认按范围批量重放？')) return;
+        call('ReplayRange', { from: val('range-from'), to: val('range-to'), limit: val('range-limit') }, 'ReplayRange');
+    }
+
+    function replayDeadLetter() {
+        if (!confirm('确认重放这条死信？')) return;
+        call('ReplayDeadLetter', { id: val('dead-id') }, 'ReplayDeadLetter');
+    }
+
+    function mark() {
+        call('Mark', { id: val('mark-id'), status: val('mark-status'), remark: val('mark-remark') });
+    }
+
+    async function exportCsv() {
+        const json = await call('Export', { from: val('export-from'), to: val('export-to') });
+        const box = document.getElementById('export-result');
+        if (!json || !json.data) { box.innerHTML = ''; return; }
+        const d = json.data;
+        document.getElementById('cleanup-ticket').value = d.ticketId || '';
+        box.innerHTML = `<div class="alert alert-success mb-0">
+            已导出 <b>${d.rowCount}</b> 条，凭证 <code>${d.ticketId}</code>（${new Date(d.expiresAt).toLocaleString()} 过期）<br />
+            文件：<code>${d.filePath}</code><br />
+            SHA-256：<code>${d.sha256}</code><br />
+            <a class="btn btn-sm btn-outline-success mt-2" href="/Admin/EventMaintenance/Download?ticketId=${encodeURIComponent(d.ticketId)}">下载 CSV</a>
+        </div>`;
+    }
+
+    function cleanup() {
+        if (!confirm('清理不可撤销，确认已导出并核对无误？')) return;
+        call('Cleanup', { ticketId: val('cleanup-ticket') }, 'Cleanup');
+    }
+</script>

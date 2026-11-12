@@ -56,18 +56,27 @@ if (app.Environment.IsDevelopment())
 else
     app.UseExceptionHandler("/CubeHome/Error");
 
+// 后台完全使用魔方自带的页面与权限体系：
+// 每个实体的控制器在 Areas/Admin/Controllers 下继承 ReadOnlyEntityController / EntityController，
+// 列表、详情、导出由魔方内置模板渲染；权限走 EntityAuthorizeAttribute（菜单 × 权限位），
+// 角色在「系统管理 → 角色」里按权限项勾选，用户角色在「用户」页指派。
+// 静态文件中间件只服务魔方自带的前端资源，没有任何自建页面。
+app.UseStaticFiles();
+
 // 显式三段：路由 → 认证 → 授权，必须早于 UseCube 注册。
 // Cube 的 UseCube 把「路由 + 端点映射」放在同一个调用里（内部 UseRouter 会 UseRouting + UseEndpoints），
 // 注册在它之后的中间件永远不会执行，所以先 UseRouting 让 Cube 复用同一条路由管道（它检测 __EndpointRouteBuilder）。
-//
-// 注意：后台接口的登录与权限判定<b>不</b>在中间件层——Cube 的登录用户要到 UseCube 内部才被还原，
-// 授权中间件此时只看到未认证请求（登录了也 401）。因此后台动作走
-// Security/RequireAdminOperationAttribute 的动作过滤器（端点执行前，Cube 中间件已跑完）。见 D-30 / D-33。
+// 后台页面的登录与权限由魔方的 EntityAuthorize 授权过滤器判定（它在端点执行前跑，此时登录用户已还原），
+// 未登录跳登录页、无权限提示无权限，与魔方其它页面一致。
 app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
 
 app.UseCube(app.Environment);
+
+// 菜单在 UseCube 里扫描控制器生成，角色授权必须排在它后面：把「运维 / 只读」两个内置角色
+// 的菜单权限补齐（管理员是系统角色，魔方已自动授予全部菜单）。
+if (efbm.SeedAdminRoles) AdminRoleSeed.Seed();
 
 app.MapControllerRoute(
     name: "default",
