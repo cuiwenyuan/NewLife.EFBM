@@ -21,9 +21,9 @@
 
 ## 当前状态
 
-**P0 契约已冻结，P1 工程骨架与 P2 接收链路已交付。** 4 个工程（`EFBM.Web` / `EFBM.Data` / `EFBM.Core` / `EFBM.Tests`）统一 `net10.0`；`Model.xml` 十张实体由 `xcode` 生成；契约层、字段字典、`EventKeyBuilder`、`RedisEventQueue`（惰性接入）、内外网配置与启动自检已落地；**P2 已实现单端点 `POST /api/events`、三模式按设备鉴权、`JsonDocument` 严格解析 + 宽容字段、一次 `XADD` 即 200、Redis 故障本地兜底与回灌**。字段字典按示例当前版本冻结为 `ParseVersion=1.0`；架构设计 D-11 已决议为 4 工程。`EFBM.Tests` 使用标准 `ProjectReference`（测试运行的是真实 DLL）；`dotnet build` 0 警告 0 错误，`dotnet test` 224 项通过。**P3 消费者与全量落库已完成**：Redis 模式下 `PersistConsumerService` 异步把 Stream 消息落 `DeviceEventRaw` / `WorkOrder` / `ProductionRecord` / `DeviceStatusLog` / `FaultRecord`，`EventKey` 幂等、死信不自动丢弃；纯日志模式无消费者，靠 `--replay` 把历史日志补录进库。**P4 安全裁剪（按各组最小已确认 ID 的 `XTRIM MINID`）已完成**：`StreamTrimHostedService` 周期驱动，绝不删除未确认消息，Redis < 6.2 自动停跑。**P4 后台接口已完成**：`api/admin/events`（组合过滤 + 分页、原文详情、手动标记、单条重放）、`api/admin/deadletters`（列表 / 详情 / 重放），重放生成新 `MessageId` + `replayOf` 且不覆盖已落库数据；接口走 Cube 登录态，未认证 401 跳登录页。
+**P0 契约已冻结，P1 工程骨架与 P2 接收链路已交付。** 4 个工程（`EFBM.Web` / `EFBM.Data` / `EFBM.Core` / `EFBM.Tests`）统一 `net10.0`；`Model.xml` 十张实体由 `xcode` 生成；契约层、字段字典、`EventKeyBuilder`、`RedisEventQueue`（惰性接入）、内外网配置与启动自检已落地；**P2 已实现单端点 `POST /api/events`、三模式按设备鉴权、`JsonDocument` 严格解析 + 宽容字段、一次 `XADD` 即 200、Redis 故障本地兜底与回灌**。字段字典按示例当前版本冻结为 `ParseVersion=1.0`；架构设计 D-11 已决议为 4 工程。`EFBM.Tests` 使用标准 `ProjectReference`（测试运行的是真实 DLL）；`dotnet build` 0 警告 0 错误，`dotnet test` 241 项通过。**P3 消费者与全量落库已完成**：Redis 模式下 `PersistConsumerService` 异步把 Stream 消息落 `DeviceEventRaw` / `WorkOrder` / `ProductionRecord` / `DeviceStatusLog` / `FaultRecord`，`EventKey` 幂等、死信不自动丢弃；纯日志模式无消费者，靠 `--replay` 把历史日志补录进库。**P4 安全裁剪（按各组最小已确认 ID 的 `XTRIM MINID`）已完成**：`StreamTrimHostedService` 周期驱动，绝不删除未确认消息，Redis < 6.2 自动停跑。**P4 后台接口已完成**：`api/admin/events`（组合过滤 + 分页、原文详情、手动标记、单条与按范围批量重放、CSV 导出、凭导出凭证清理）、`api/admin/deadletters`（列表 / 详情 / 重放），重放生成新 `MessageId` + `replayOf` 且不覆盖已落库数据，清理只删导出过的那部分；接口走 Cube 登录态，未认证 401 跳登录页。
 
-**尚未实现**：Cube 后台页面（报文列表 / 原文查看 / 死信页 / 状态字典维护 / 消费组监控，P4 进行中；后端接口已就绪）、按时间范围批量重放与导出清理、部署联调（P5~P6）。P3 消费者落库、P4 安全裁剪与后台接口均已完成——Redis 模式下返回 200 的数据真正入库、Stream 按最小已确认 ID 安全收缩、后台可按条件检索并重放；但**页面 / 压测未做，仍未到生产上线标准**。真实 Redis ≥ 6.2 / MySQL 环境下的运行时验收与 P99 压测仍待补。功能完成状态以 [Doc/功能清单.md](Doc/功能清单.md) 为唯一持久状态源，请勿据文档进度判断系统可用。
+**尚未实现**：Cube 后台页面（报文列表 / 原文查看 / 死信页 / 状态字典维护 / 消费组监控，P4 进行中；后端接口已就绪）、三角色权限矩阵、部署联调（P5~P6）。P3 消费者落库、P4 安全裁剪与后台接口（检索 / 重放 / 导出 / 清理）均已完成——Redis 模式下返回 200 的数据真正入库、Stream 按最小已确认 ID 安全收缩、后台可按条件检索并重放、清理必须先导出；但**页面 / 压测未做，仍未到生产上线标准**。真实 Redis ≥ 6.2 / MySQL 环境下的运行时验收与 P99 压测仍待补。功能完成状态以 [Doc/功能清单.md](Doc/功能清单.md) 为唯一持久状态源，请勿据文档进度判断系统可用。
 
 ### Beta 最小版本（当前可交付）
 
@@ -73,7 +73,7 @@ tail -n 1 src/EFBM.Web/logs/api/api-$(date +%Y%m%d).log
 
 - **项目类型**：`net10.0` / ASP.NET Core 后端 + NewLife.Cube 管理后台（含内嵌后台消费者），无独立前端工程。
 - **编译命令**：`dotnet build EFBM.sln`（解决方案根目录，包含 4 个工程；当前 0 警告 0 错误）。
-- **测试命令**：`dotnet test EFBM.sln`（xUnit，当前 224 项通过，全部带中文 `DisplayName`；集成测试用 XCode + SQLite，P3 消费落库集成测试覆盖幂等 / 死信 / 全量留存，P4 安全裁剪纯算法单测覆盖，P4 后台接口集成测试覆盖过滤 / 分页 / 标记 / 重放语义，双数据库矩阵与故障注入按开发计划 §7）。
+- **测试命令**：`dotnet test EFBM.sln`（xUnit，当前 241 项通过，全部带中文 `DisplayName`；集成测试用 XCode + SQLite，P3 消费落库集成测试覆盖幂等 / 死信 / 全量留存，P4 安全裁剪纯算法单测覆盖，P4 后台接口集成测试覆盖过滤 / 分页 / 标记 / 重放语义，双数据库矩阵与故障注入按开发计划 §7）。
 - **核心工程**（4 个，按架构设计 D-11 决议收敛；Queue / Services / Consumers 是 `EFBM.Web` 内的目录分层）：
 
 | 工程 | 职责 |

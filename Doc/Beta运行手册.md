@@ -294,12 +294,17 @@ redis-cli -n 5 XRANGE efbm:events - + COUNT 1
 | `POST api/admin/events/{id}/replay` | 单条重放入流：新 `messageId` + `replayOf` 指向原消息，`eventKey` 与原文不变 |
 | `GET api/admin/deadletters` | 死信检索：`eventKey` / `messageId` / `replayStatus` / `from` / `to` + 分页 |
 | `POST api/admin/deadletters/{id}/replay` | 死信重放：成功才回写 `ReplayStatus` / `ReplayAt` / `ReplayBy` |
+| `POST api/admin/events/replay-range` | 按接收时间批量重放：`{"from":"...","to":"...","limit":500}`；默认 500、硬上限 2000，返回 `matched` / `attempted` / `succeeded` / `failed` / `truncated` |
+| `POST api/admin/events/export?from=...&to=...` | 按接收时间导出 CSV（UTF-8 BOM，Excel 直开不乱码），返回 `ticketId` / `rowCount` / `sha256` / `expiresAt`；单次上限 20 万条 |
+| `GET api/admin/events/export/{ticketId}/download` | 下载导出文件 |
+| `POST api/admin/events/cleanup` | **凭导出凭证**清理：`{"ticketId":"..."}`；无凭证 / 过期 / 文件被改动一律 409 拒绝，只删导出过的部分 |
 
-注意三点：
+注意四点：
 
 1. **纯日志模式不能重放**：`EFBM:RedisEnabled=false` 时没有任何消费者，接口返回 409 并提示改用 `--replay` 补录（见 §4.4）。
 2. **重放不覆盖数据**：`eventKey` 与原报文一致，消费端命中幂等只累加 `RepeatCount`；死信（`processStatus=2`）重放后会重新执行 handler 并收敛为落库一次。
 3. **接口本身不下发凭据**：设备凭据仍走配置引导（§6），后台凭据发放页面在 P4 后续交付。
+4. **清理必须先导出**：凭证默认 30 分钟有效、用后即废，只保存在进程内存——重启后旧凭证失效，需要重新导出。导出文件落在 `EFBM:ExportDirectory`（默认 `logs/export`，相对路径以 DLL 所在目录为基准），凭证会校验文件 SHA-256，**拷走文件后不要改动它**，否则清理会被拒绝。
 
 ---
 

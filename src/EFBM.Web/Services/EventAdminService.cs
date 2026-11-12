@@ -470,6 +470,39 @@ public sealed class ReplayResult
     public static ReplayResult Fail(String reason) => new() { Success = false, Reason = reason };
 }
 
+/// <summary>按时间范围批量重放的结果（FR-24）。</summary>
+public sealed class ReplayRangeResult
+{
+    /// <summary>是否整体执行成功（前置条件满足即成功，单条失败见 <see cref="Failed"/>）。</summary>
+    public Boolean Success { get; init; }
+
+    /// <summary>失败原因；前置条件不满足时返回。</summary>
+    public String Reason { get; init; }
+
+    /// <summary>范围内命中总条数。</summary>
+    public Int64 Matched { get; init; }
+
+    /// <summary>本次实际尝试重放的条数（受上限约束）。</summary>
+    public Int32 Attempted { get; init; }
+
+    /// <summary>成功写入共享流的条数。</summary>
+    public Int32 Succeeded { get; init; }
+
+    /// <summary>失败条数。</summary>
+    public Int32 Failed { get; init; }
+
+    /// <summary>是否因超过单次上限被截断。</summary>
+    public Boolean Truncated { get; init; }
+
+    /// <summary>失败摘要（最多保留前 20 条，避免响应体过大）。</summary>
+    public IReadOnlyList<String> Errors { get; init; } = Array.Empty<String>();
+
+    /// <summary>构造前置条件失败结果。</summary>
+    /// <param name="reason">失败原因。</param>
+    /// <returns>失败结果。</returns>
+    public static ReplayRangeResult Blocked(String reason) => new() { Success = false, Reason = reason };
+}
+
 /// <summary>后台重放：把已落库报文或死信重新写入共享流（FR-24、FR-12、FR-15）。</summary>
 /// <remarks>
 /// 重放的语义是「<b>再发一次，不覆盖任何已落库数据</b>」：
@@ -482,6 +515,12 @@ public sealed class ReplayResult
 /// </remarks>
 public sealed class EventReplayService
 {
+    /// <summary>批量重放未指定条数时的默认上限。</summary>
+    public const Int32 DefaultReplayRangeLimit = 500;
+
+    /// <summary>批量重放单次硬上限：防止误操作把几万条消息一次灌回共享流。</summary>
+    public const Int32 MaxReplayRangeLimit = 2000;
+
     private readonly EfbmOptions _options;
     private readonly IEventQueue _queue;
 
@@ -509,22 +548,88 @@ public sealed class EventReplayService
 
         if (String.IsNullOrWhiteSpace(entity.RawJson)) return ReplayResult.Fail("记录缺少报文原文，无法重放");
 
-        var message = new StreamMessage
-        {
-            MessageId = Guid.NewGuid().ToString("D"),
-            EventKey = entity.EventKey,
-            Event = entity.Event,
-            DeviceId = entity.DeviceId,
-            Timestamp = entity.EventTimeRaw,
-            RawJson = entity.RawJson,
-            ReceivedAt = entity.ReceivedAt == DateTime.MinValue ? DateTime.UtcNow : entity.ReceivedAt,
-            SourceIp = entity.SourceIp,
-            // 已是重放产生的记录时，继续指向最初的原消息，避免链条越套越深
-            ReplayOf = String.IsNullOrWhiteSpace(entity.ReplayOf) ? entity.MessageId : entity.ReplayOf,
-        };
+        var message = BuildMessage(entity);
 
         return await AddAsync(message, operatorName, cancellationToken).ConfigureAwait(false);
     }
+
+    /// <summary>按接收时间范围批量重放（STR-4b），每条消息同样带 <c>replayOf</c> 与不变的 <c>eventKey</c>。</summary>
+    /// <param name="from">下界（含）。</param>
+    /// <param name="to">上界（含）。</param>
+    /// <param name="limit">本次最多重放条数；<c>≤0</c> 取默认 500，超过上限按上限截断。</param>
+    /// <param name="operatorName">操作人。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>批量重放结果。</returns>
+    public async Task<ReplayRangeResult> ReplayRangeAsync(DateTime from, DateTime to, Int32 limit, String operatorName, CancellationToken cancellationToken = default)
+    {
+        if (from > to) return ReplayRangeResult.Blocked("from 不能晚于 to");
+
+        var blocked = CheckEnabled();
+        if (blocked != null) return ReplayRangeResult.Blocked(blocked.Reason);
+
+        var take = limit <= 0 ? DefaultReplayRangeLimit : Math.Min(limit, MaxReplayRangeLimit);
+
+        var exp = DeviceEventRaw._.ReceivedAt >= from & DeviceEventRaw._.ReceivedAt <= to;
+        var matched = DeviceEventRaw.FindCount(exp, null, null, 0, 0);
+        if (matched <= 0)
+        {
+            return new ReplayRangeResult { Success = true, Matched = 0, Attempted = 0, Succeeded = 0, Failed = 0 };
+        }
+
+        // 只取前 take 条：批量重放是运维手段，不该一次把几万条重新灌进流里
+        var list = DeviceEventRaw.FindAll(exp, DeviceEventRaw._.Id.Asc(), null, 0, take);
+
+        var succeeded = 0;
+        var failed = 0;
+        var errors = new List<String>();
+
+        foreach (var entity in list)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var result = String.IsNullOrWhiteSpace(entity.RawJson)
+                ? ReplayResult.Fail("记录缺少报文原文")
+                : await AddAsync(BuildMessage(entity), operatorName, cancellationToken).ConfigureAwait(false);
+
+            if (result.Success) succeeded++;
+            else
+            {
+                failed++;
+                if (errors.Count < 20) errors.Add($"id={entity.Id} eventKey={entity.EventKey}: {result.Reason}");
+            }
+        }
+
+        XTrace.WriteLine("后台批量重放：范围={0:yyyy-MM-dd HH:mm:ss}~{1:yyyy-MM-dd HH:mm:ss} 命中={2} 尝试={3} 成功={4} 失败={5} 操作人={6}",
+            from, to, matched, list.Count, succeeded, failed, operatorName);
+
+        return new ReplayRangeResult
+        {
+            Success = true,
+            Matched = matched,
+            Attempted = list.Count,
+            Succeeded = succeeded,
+            Failed = failed,
+            Truncated = matched > list.Count,
+            Errors = errors,
+        };
+    }
+
+    /// <summary>把已落库的原始报文还原成待重放的消息：新 <c>MessageId</c>，其余与原报文一致。</summary>
+    /// <param name="entity">原始报文实体。</param>
+    /// <returns>待写入共享流的消息。</returns>
+    private static StreamMessage BuildMessage(DeviceEventRaw entity) => new()
+    {
+        MessageId = Guid.NewGuid().ToString("D"),
+        EventKey = entity.EventKey,
+        Event = entity.Event,
+        DeviceId = entity.DeviceId,
+        Timestamp = entity.EventTimeRaw,
+        RawJson = entity.RawJson,
+        ReceivedAt = entity.ReceivedAt == DateTime.MinValue ? DateTime.UtcNow : entity.ReceivedAt,
+        SourceIp = entity.SourceIp,
+        // 已是重放产生的记录时，继续指向最初的原消息，避免链条越套越深
+        ReplayOf = String.IsNullOrWhiteSpace(entity.ReplayOf) ? entity.MessageId : entity.ReplayOf,
+    };
 
     /// <summary>重放一条死信。</summary>
     /// <param name="id">死信主键。</param>

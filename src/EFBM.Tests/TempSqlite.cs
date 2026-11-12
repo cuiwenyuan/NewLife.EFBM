@@ -33,6 +33,37 @@ internal static class TempSqlite
         AppDomain.CurrentDomain.ProcessExit += (_, _) => TryDelete(path);
     }
 
+    /// <summary>分配一个临时目录（已创建），并登记为进程退出时递归删除。</summary>
+    /// <param name="prefix">目录名前缀。</param>
+    /// <returns>临时目录完整路径。</returns>
+    public static String CreateDirectory(String prefix)
+    {
+        var dir = Path.Combine(Path.GetTempPath(), $"{prefix}-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(dir);
+
+        AppDomain.CurrentDomain.ProcessExit += (_, _) => TryDeleteDirectory(dir);
+
+        return dir;
+    }
+
+    /// <summary>尽力删除临时目录。</summary>
+    /// <param name="dir">目录路径。</param>
+    public static void TryDeleteDirectory(String dir)
+    {
+        try
+        {
+            if (Directory.Exists(dir)) Directory.Delete(dir, recursive: true);
+        }
+        catch (IOException)
+        {
+            // 文件仍被占用时保留，下次运行不影响
+        }
+        catch (UnauthorizedAccessException)
+        {
+            // 同上
+        }
+    }
+
     /// <summary>尽力删除临时库：连接池未及时释放时保留文件，不影响测试结论。</summary>
     /// <param name="path">临时库路径。</param>
     public static void TryDelete(String path)

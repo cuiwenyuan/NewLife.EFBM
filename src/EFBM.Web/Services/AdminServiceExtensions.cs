@@ -10,9 +10,10 @@ public static class AdminServiceExtensions
     {
         if (services == null) throw new ArgumentNullException(nameof(services));
 
-        // 检索只走 XCode 实体、无状态；重放持有队列与应用配置，均按单例注册（与接收 / 消费链路一致）
+        // 检索只走 XCode 实体、无状态；重放持有队列与应用配置；导出持有进程内凭证表，均按单例注册
         services.AddSingleton<EventQueryService>();
         services.AddSingleton<EventReplayService>();
+        services.AddSingleton<EventExportService>();
 
         return services;
     }

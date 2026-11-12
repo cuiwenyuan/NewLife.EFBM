@@ -89,6 +89,12 @@ public class EfbmOptions
     /// <summary>安全裁剪保留下限（天）：绝不删除该天数内的数据，即使已被所有消费组确认（需从 Redis 重放时留缓冲）。</summary>
     public Int32 SafeTrimMinRetentionDays { get; set; } = 7;
 
+    /// <summary>后台导出目录。相对路径以应用基目录（DLL 所在目录）为基准，不是进程工作目录。</summary>
+    public String ExportDirectory { get; set; } = "logs/export";
+
+    /// <summary>导出凭证有效期（分钟）：超时后清理操作会被拒绝，必须重新导出（FR-15「先导出再删」）。</summary>
+    public Int32 ExportTicketMinutes { get; set; } = 30;
+
     /// <summary>是否在启动时探测 Redis 版本（默认关闭，避免骨架阶段依赖 Redis 在线）。</summary>
     public Boolean ProbeRedisOnStartup { get; set; }
 
