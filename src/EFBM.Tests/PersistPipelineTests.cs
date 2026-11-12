@@ -18,11 +18,12 @@ namespace EFBM.Tests;
 /// 两个真实库测试类并行会互相抢连接串，必须串行。
 /// </remarks>
 [Collection("sqlite")]
-public sealed class PersistPipelineTests : IDisposable
+public sealed class PersistPipelineTests
 {
     /// <summary>类级共享库文件：xUnit 每个测试方法都会重建类实例，逐方法换文件会撞上
-    /// XCode 静态建表缓存（新文件里没有表）；类内测试串行共享一张表，数据用不同单号 / 设备隔离。</summary>
-    private static readonly String _dbFile = Path.Combine(Path.GetTempPath(), $"efbm-p3-{Guid.NewGuid():N}.db");
+    /// XCode 静态建表缓存（新文件里没有表）；类内测试串行共享一张表，数据用不同单号 / 设备隔离。
+    /// 文件在测试进程退出时统一删除，避免每次运行都在临时目录留下残留。</summary>
+    private static readonly String _dbFile = TempSqlite.CreatePath("efbm-p3");
 
     private readonly EventPersistService _persist;
     private readonly EfbmOptions _options = new() { DeviceAutoRegister = true };
@@ -204,10 +205,5 @@ public sealed class PersistPipelineTests : IDisposable
         Assert.Contains("newField", raw.UnknownFields);   // 未知字段监测（FR-27 的数据基础）
         Assert.Equal(EfbmDefaults.ParseVersion, raw.ParseVersion);
         Assert.Contains("newField", raw.RawJson);          // 原文全量
-    }
-
-    /// <summary>无操作：库文件由类级静态字段持有，多个测试方法共享，不逐实例删除。</summary>
-    public void Dispose()
-    {
     }
 }

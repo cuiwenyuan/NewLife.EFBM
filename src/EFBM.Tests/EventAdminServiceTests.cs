@@ -22,7 +22,7 @@ namespace EFBM.Tests;
 [Collection("sqlite")]
 public sealed class EventAdminServiceTests
 {
-    private static readonly String _dbFile = Path.Combine(Path.GetTempPath(), $"efbm-admin-{Guid.NewGuid():N}.db");
+    private static readonly String _dbFile = TempSqlite.CreatePath("efbm-admin");
 
     private readonly EventQueryService _query = new();
     private readonly FakeEventQueue _queue = new();
