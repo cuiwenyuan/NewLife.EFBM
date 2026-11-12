@@ -378,6 +378,6 @@ jq -r 'select(.status==200) | .raw' logs/api/api-20261112.log > replay.jsonl
 1. **日志不是数据库**：查询只能 `grep` / `jq`，没有后台页面（P4）。P3 落库后日志已退化为**审计与补录源**——`--replay`（§4.4）可把历史日志补进业务表。
 2. **纯日志模式不写兜底表**：避免同一份数据在 SQLite 里无限堆积；切到 Redis 模式后新请求才会进兜底表。
 3. **纯日志模式无消费者**：默认 `RedisEnabled=false` 时数据只进文本日志，靠 `--replay` 补录；启用 Redis 后 `PersistConsumerService` 常驻消费落库。
-4. **没有安全裁剪**：Stream 只增不减，Beta 数据量小可接受；正式上线前必须落 P4 的按组最小已确认 ID 裁剪。
+4. **安全裁剪已交付（P4）**：`StreamTrimHostedService` 周期按各组最小已确认 ID 执行 `XTRIM MINID`，绝不删除未确认消息；需 Redis ≥ 6.2，低于该版本会在首次执行时报错并自动停跑（日志提示）；`EFBM:RedisEnabled=false` 纯日志模式不启动该任务。
 5. **未做压测**：P99 与吞吐需在目标环境用真实设备节拍验证（单件 > 1 秒，压力不大）；`FlushToDisk=true` 每条约 1ms，属于可接受成本。
 6. 下一步按《开发计划.md》：P3 消费者与全量落库（含日志回放工具）**已完成** → P4 后台与裁剪 → P5 部署监控 → P6 联调压测。

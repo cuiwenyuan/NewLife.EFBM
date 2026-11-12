@@ -15,7 +15,13 @@ public static class QueueServiceExtensions
     /// </remarks>
     public static IServiceCollection AddEFBMQueue(this IServiceCollection services)
     {
-        services.AddSingleton<IEventQueue>(sp => new RedisEventQueue(sp.GetRequiredService<EfbmOptions>()));
+        services.AddSingleton<RedisEventQueue>(sp => new RedisEventQueue(sp.GetRequiredService<EfbmOptions>()));
+        services.AddSingleton<IEventQueue>(sp => sp.GetRequiredService<RedisEventQueue>());
+
+        // 安全裁剪（P4）：与 IEventQueue 同一实例实现 IStreamTrimmer，由后台任务周期驱动
+        services.AddSingleton<IStreamTrimmer>(sp => sp.GetRequiredService<RedisEventQueue>());
+        services.AddHostedService<StreamTrimHostedService>();
+
         return services;
     }
 }

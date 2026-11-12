@@ -83,6 +83,12 @@ public class EfbmOptions
     /// <summary>按所有消费组最小已确认 ID 的安全裁剪开关。</summary>
     public Boolean SafeTrimEnabled { get; set; } = true;
 
+    /// <summary>安全裁剪扫描间隔（秒）。默认 300 秒（5 分钟）一轮。</summary>
+    public Int32 SafeTrimIntervalSeconds { get; set; } = 300;
+
+    /// <summary>安全裁剪保留下限（天）：绝不删除该天数内的数据，即使已被所有消费组确认（需从 Redis 重放时留缓冲）。</summary>
+    public Int32 SafeTrimMinRetentionDays { get; set; } = 7;
+
     /// <summary>是否在启动时探测 Redis 版本（默认关闭，避免骨架阶段依赖 Redis 在线）。</summary>
     public Boolean ProbeRedisOnStartup { get; set; }
 

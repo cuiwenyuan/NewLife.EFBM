@@ -21,7 +21,7 @@ namespace EFBM.Web.Queue;
 /// 本地兜底写入后的回灌由 P2 的 <c>FallbackRequeueService</c> 负责。
 /// 本类只负责写入、读取与确认，不自动裁剪、不自动丢弃。
 /// </remarks>
-public sealed class RedisEventQueue : IEventQueue, IEventQueueProbe, IDisposable
+public sealed class RedisEventQueue : IEventQueue, IEventQueueProbe, IStreamTrimmer, IDisposable
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -148,6 +148,82 @@ public sealed class RedisEventQueue : IEventQueue, IEventQueueProbe, IDisposable
         catch (Exception ex)
         {
             return Task.FromResult(new QueueStatus { Enabled = true, Connected = false, Error = $"{ex.GetType().Name}: {ex.Message}" });
+        }
+    }
+
+    /// <summary>按各组最小已确认 ID 安全裁剪共享流；不删除任何未确认消息。</summary>
+    /// <remarks>
+    /// <c>XTRIM MINID</c> 需要 Redis ≥ 6.2；低版本会在首次调用时抛错，本方法捕获后标记
+    /// <see cref="StreamTrimReport.Unsupported"/>，由后台任务停止循环。算法细节见 <see cref="StreamTrimCalculator"/>。
+    /// </remarks>
+    public Task<StreamTrimReport> TrimSafeAsync(CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var report = new StreamTrimReport();
+
+        if (!_options.RedisEnabled) return Task.FromResult(report.Skipped("Redis 未启用（EFBM:RedisEnabled=false），无裁剪目标"));
+        if (!_options.SafeTrimEnabled) return Task.FromResult(report.Skipped("安全裁剪未启用（EFBM:SafeTrimEnabled=false）"));
+
+        try
+        {
+            // 惰性建组 + 首次连接在此触发；GetGroups 在 stream 不存在时返回空数组（已捕获 ERR no such key）
+            var groups = _stream.GetGroups();
+            if (groups == null || groups.Length == 0)
+                return Task.FromResult(report.Skipped("无消费组，无法确定安全裁剪边界，跳过以免误删"));
+
+            var views = new List<GroupView>(groups.Length);
+            foreach (var g in groups)
+            {
+                String pendingMin = null;
+                var pendingCount = 0;
+                // 仅当该组确有未确认消息时才去查 pending 最小 ID；否则用 last-delivered-id 作为边界
+                if (g.Pending > 0 && !String.IsNullOrEmpty(g.Name))
+                {
+                    var pi = _stream.GetPending(g.Name);
+                    if (pi != null)
+                    {
+                        pendingCount = pi.Count;
+                        pendingMin = pi.StartId;
+                    }
+                }
+
+                views.Add(new GroupView
+                {
+                    Name = g.Name,
+                    LastDeliveredId = g.LastDeliveredId,
+                    PendingMinId = pendingMin,
+                    PendingCount = pendingCount,
+                });
+            }
+
+            var nowMs = (Int64)(DateTime.UtcNow - StreamTrimCalculator.Epoch).TotalMilliseconds;
+            var floorMs = nowMs - (Int64)_options.SafeTrimMinRetentionDays * 86_400_000L;
+
+            var safeMs = StreamTrimCalculator.ComputeSafeMs(views, out var skip);
+            if (safeMs <= 0)
+                return Task.FromResult(report.Skipped(skip ?? "无法确定安全裁剪边界"));
+
+            var effectiveMs = StreamTrimCalculator.ComputeEffectiveMs(safeMs, floorMs);
+            if (effectiveMs <= 0)
+                return Task.FromResult(report.Skipped("无可安全裁剪的数据（裁剪点非法）"));
+
+            // XTRIM MINID <effectiveMs>：删除 id 小于该毫秒时间戳的全部消息。底层把 DateTime 转为 Unix 毫秒，
+            // 与 Stream ID（毫秒-序号）前缀对齐，因此删除的是 effectiveMs 之前的已确认数据。
+            var trimmed = _stream.Trim(StreamTrimCalculator.Epoch.AddMilliseconds(effectiveMs));
+            return Task.FromResult(report.MarkApplied(groups.Length, safeMs, floorMs, effectiveMs, trimmed));
+        }
+        catch (Exception ex)
+        {
+            var msg = ex.Message ?? String.Empty;
+            // Redis < 6.2 会报 unknown command / MINID 相关错误
+            if (msg.Contains("unknown command", StringComparison.OrdinalIgnoreCase) ||
+                msg.Contains("MINID", StringComparison.OrdinalIgnoreCase) ||
+                msg.Contains("ERR", StringComparison.OrdinalIgnoreCase))
+            {
+                return Task.FromResult(report.MarkUnsupported(msg));
+            }
+
+            return Task.FromResult(report.MarkError(msg));
         }
     }
 
