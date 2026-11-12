@@ -41,6 +41,7 @@ public static class AdminRoleSeed
         "FaultDisposal",
         "QueueMonitor",
         "FieldEvolution",
+        "ConsumerGroup",
     ];
 
     /// <summary>补齐两个内置角色的授权；已存在则更新权限串。</summary>

@@ -265,5 +265,24 @@
         <Index Columns="Event,FieldName" Unique="True" />
       </Indexes>
     </Table>
+    <Table Name="ConsumerGroup" Description="消费组登记">
+      <Columns>
+        <Column Name="Id" DataType="Int32" Identity="True" PrimaryKey="True" Description="编号" />
+        <Column Name="Name" DataType="String" Master="True" Description="消费组名。必须为 efbm-系统名" />
+        <Column Name="SystemName" DataType="String" Description="归属系统名称" />
+        <Column Name="Owner" DataType="String" Description="责任人 / 联系方式" />
+        <Column Name="Enabled" DataType="Boolean" Description="启用" />
+        <Column Name="LastSeen" DataType="DateTime" Description="最后出现时间 UTC。监控扫描到该组时回写" />
+        <Column Name="Description" DataType="String" Length="500" Description="用途说明" />
+        <Column Name="Remark" DataType="String" Length="500" Description="备注" />
+        <Column Name="CreateTime" DataType="DateTime" Description="创建时间" Category="扩展" />
+        <Column Name="CreateIP" DataType="String" Description="创建地址" Category="扩展" />
+        <Column Name="UpdateTime" DataType="DateTime" Description="更新时间" Category="扩展" />
+        <Column Name="UpdateIP" DataType="String" Description="更新地址" Category="扩展" />
+      </Columns>
+      <Indexes>
+        <Index Columns="Name" Unique="True" />
+      </Indexes>
+    </Table>
   </Tables>
 </EntityModel>

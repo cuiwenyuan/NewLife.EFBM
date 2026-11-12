@@ -51,6 +51,12 @@ if (efbm.Beta?.Enabled == true) BetaSeedService.SeedOrThrow(efbm);
 // 启动日志：打印实际 provider、Redis 地址、Stream key、消费组与部署环境，便于核对内外网配置
 StartupDiagnostics.Log(app.Configuration, app.Environment, efbm);
 
+// 关掉魔方的「在线用户」请求级统计：设备上报是机器流量，不带 Cookie 的匿名请求每次都被当成新会话，
+// RunTimeMiddleware 会为每条上报插一行 UserOnline，与审计日志 / 业务落库争同一个库的写锁。
+// SQLite 部署实测会抛「attempt to write a readonly database」，把上报请求打成 500（等于丢数据）。
+// 必须在 UseCube 之前设置：中间件按当前值判定。档位 0/1/2 见 EfbmOptions.UserOnlineMode。
+CubeSetting.Current.EnableUserOnline = efbm.UserOnlineMode;
+
 if (app.Environment.IsDevelopment())
     app.UseDeveloperExceptionPage();
 else
@@ -61,6 +67,15 @@ else
 // 列表、详情、导出由魔方内置模板渲染；权限走 EntityAuthorizeAttribute（菜单 × 权限位），
 // 角色在「系统管理 → 角色」里按权限项勾选，用户角色在「用户」页指派。
 // 静态文件中间件只服务魔方自带的前端资源，没有任何自建页面。
+
+// 外网暴露面收敛（AUTH-4b）：只放行上报、查询、健康检查与后台入口，其余一律 404。
+// 必须排在静态文件与路由之前，被拦下的路径不会进入任何后续管道。
+if (efbm.IsInternet() && efbm.ExposureAllowlistEnabled)
+{
+    app.UseMiddleware<EFBM.Web.Security.ExposureAllowlistMiddleware>();
+    XTrace.WriteLine("外网暴露面白名单已启用：{0}", String.Join(" / ", EFBM.Web.Security.ExposureAllowlistMiddleware.Describe()));
+}
+
 app.UseStaticFiles();
 
 // 显式三段：路由 → 认证 → 授权，必须早于 UseCube 注册。
@@ -92,6 +107,18 @@ if (replayIndex >= 0)
     return;
 }
 
+// --backfill-fields [天数]：把已固化字段的历史值从原文补进 ExtJson，跑完即退出（FLD-2c）
+// 设备不重发历史报文，这是「新增字段只有从今天起有数据」的唯一补救手段
+var backfillIndex = Array.FindIndex(args, a => String.Equals(a, "--backfill-fields", StringComparison.OrdinalIgnoreCase));
+if (backfillIndex >= 0)
+{
+    var days = 0;
+    if (args.Length > backfillIndex + 1) Int32.TryParse(args[backfillIndex + 1], out days);
+
+    await FieldBackfillRunner.RunAsync(app.Services, days);
+    return;
+}
+
 app.Run();
 
 /// <summary>把配置里的连接串显式登记进 XCode DAL；已存在则覆盖，幂等。</summary>
@@ -100,6 +127,11 @@ app.Run();
 static void RegisterConnection(String name, String connectionString)
 {
     if (String.IsNullOrWhiteSpace(connectionString)) return;
+
+    // SQLite 默认不开连接池：每次开连接约 8ms，一条事件 5~6 条语句 → 落库吞吐只有 20 条/秒。
+    // 在这里统一补齐 Pooling=True（用户显式写了就不覆盖），避免某个部署文件漏配导致静默退化。
+    connectionString = ConnectionStringTuning.Normalize(connectionString);
+
     var dbType = connectionString.Contains("Provider=MySql", StringComparison.OrdinalIgnoreCase) ? "MySql" : "SQLite";
     DAL.AddConnStr(name, connectionString, null, dbType);
 }

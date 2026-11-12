@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using EFBM.Core;
+using EFBM.Data.Entities;
 using Microsoft.AspNetCore.Mvc;
 using NewLife.Cube;
 using NewLife.Cube.Areas.Admin;
@@ -40,7 +41,13 @@ public class QueueMonitorController : EfbmAdminController
         ViewBag.SafeTrimIntervalSeconds = _options.SafeTrimIntervalSeconds;
         ViewBag.SafeTrimMinRetentionDays = _options.SafeTrimMinRetentionDays;
 
-        return View(await _probe.GetMetricsAsync(cancellationToken));
+        var metrics = await LoadAsync(cancellationToken);
+
+        // 登记信息按组名索引，视图里逐行显示「这是谁家的组、有没有登记」
+        var groups = ConsumerGroup.FindAll().ToDictionary(e => e.Name, StringComparer.Ordinal);
+        ViewBag.Registry = groups;
+
+        return View(metrics);
     }
 
     /// <summary>指标快照（页面自动刷新用）。</summary>
@@ -48,5 +55,30 @@ public class QueueMonitorController : EfbmAdminController
     /// <returns><c>{code,message,data}</c> 结构的 JSON。</returns>
     [EntityAuthorize(PermissionFlags.Detail)]
     public async Task<ActionResult> Snapshot(CancellationToken cancellationToken)
-        => Json(0, "ok", await _probe.GetMetricsAsync(cancellationToken));
+        => Json(0, "ok", await LoadAsync(cancellationToken));
+
+    /// <summary>取指标并回写已登记组的「最后出现时间」。</summary>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>指标快照。</returns>
+    /// <remarks>
+    /// 回写只在页面被打开时发生（10 秒一次），且实体内部限制每分钟最多写一次，
+    /// 不会把「看一眼监控」变成持续写库。未登记的组不自动建记录，只在页面上提示。
+    /// </remarks>
+    private async Task<QueueMetrics> LoadAsync(CancellationToken cancellationToken)
+    {
+        var metrics = await _probe.GetMetricsAsync(cancellationToken).ConfigureAwait(false);
+
+        try
+        {
+            ViewBag.UnregisteredGroups = ConsumerGroup.TouchSeen(metrics.Groups.Select(e => e.Name));
+        }
+        catch (Exception ex)
+        {
+            // 登记表读不出来不能影响监控本身
+            NewLife.Log.XTrace.WriteLine("回写消费组最后出现时间失败：{0}: {1}", ex.GetType().Name, ex.Message);
+            ViewBag.UnregisteredGroups = Array.Empty<String>();
+        }
+
+        return metrics;
+    }
 }

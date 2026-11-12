@@ -93,6 +93,11 @@ public sealed class EventIngestService
             AppSecret = request.AppSecret,
             Authorization = request.Authorization,
             DeviceId = envelope.DeviceId,
+            HmacEnabled = _options.HmacEnabled,
+            HmacTimestamp = request.HmacTimestamp,
+            HmacSignature = request.HmacSignature,
+            RawJson = request.RawJson,
+            HmacWindowSeconds = _options.HmacWindowSeconds,
         }, cancellationToken).ConfigureAwait(false);
 
         // 先组装消息体：401 / 403 也要在日志里留下 event / deviceId / 两个键，便于定位是哪台设备在打

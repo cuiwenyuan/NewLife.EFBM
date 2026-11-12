@@ -16,6 +16,12 @@ public static class EfbmDefaults
     /// <summary>唯一上报端点路径，不带版本号。</summary>
     public const String EventsRoute = "api/events";
 
+    /// <summary>统一查询统计 API 路径前缀。</summary>
+    public const String QueryRoute = "api/query";
+
+    /// <summary>查询统计 API 的密钥请求头默认名。</summary>
+    public const String QueryApiKeyHeader = "X-Query-Key";
+
     /// <summary>共享上报流的 Stream key。</summary>
     public const String StreamKey = "efbm:events";
 

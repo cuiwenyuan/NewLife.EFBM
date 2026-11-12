@@ -69,6 +69,20 @@ public class EfbmOptions
     /// <summary>消费者单条消息的进程内重试上限；超过后先写死信表再确认（FR-12，绝不自动丢弃）。</summary>
     public Int32 ConsumerMaxRetry { get; set; } = EfbmDefaults.ConsumerMaxRetry;
 
+    /// <summary>接管其他消费者遗留未确认消息的空闲阈值（秒）；<c>0</c> 表示不接管。默认 300。</summary>
+    /// <remarks>
+    /// 消费者名是「主机名@进程号」，每次重启都换名字：旧消费者留在 PEL 里的未确认消息
+    /// 不会再被任何人读到，既不落库也不进死信。启动时与每轮间隔都会扫描并接管空闲超阈值的消息。
+    /// 阈值必须远大于单条处理耗时（毫秒级），否则会把别的实例正在处理的消息抢走（重复处理，幂等可兜但无益）。
+    /// </remarks>
+    public Int32 PersistClaimIdleSeconds { get; set; } = PelClaimRules.DefaultIdleSeconds;
+
+    /// <summary>接管扫描间隔（秒），默认 300；必须为正。</summary>
+    public Int32 PersistClaimIntervalSeconds { get; set; } = 300;
+
+    /// <summary>单轮接管最多扫描的 pending 条数，默认 100。</summary>
+    public Int32 PersistClaimBatchSize { get; set; } = PelClaimRules.DefaultBatchSize;
+
     /// <summary>首次上报自动登记设备（FR-13）；关闭后未登记设备的事件仍正常落库，只是不建 Device 记录。</summary>
     public Boolean DeviceAutoRegister { get; set; } = true;
 
@@ -96,11 +110,53 @@ public class EfbmOptions
     /// <summary>导出凭证有效期（分钟）：超时后清理操作会被拒绝，必须重新导出（FR-15「先导出再删」）。</summary>
     public Int32 ExportTicketMinutes { get; set; } = 30;
 
+    /// <summary>上报来源 IP 白名单（逗号 / 分号分隔，支持 CIDR 与通配 <c>*</c>）；空表示不限制。</summary>
+    /// <remarks>外网部署建议配置；命中判断见 <see cref="AccessPolicy.IsIpAllowed"/>。</remarks>
+    public String AllowedIps { get; set; }
+
+    /// <summary>是否要求上报请求带 HMAC-SHA256 签名（<c>X-Timestamp</c> + <c>X-Signature</c>）。</summary>
+    /// <remarks>默认关闭：现有设备不带签名。启用后签名缺失或时间窗超限一律 401，属于灰度上线能力。</remarks>
+    public Boolean HmacEnabled { get; set; }
+
+    /// <summary>HMAC 允许的时钟偏差（秒），默认 300。</summary>
+    public Int32 HmacWindowSeconds { get; set; } = AccessPolicy.DefaultHmacWindowSeconds;
+
+    /// <summary>查询统计 API 的访问密钥；配置后要求请求头 <see cref="QueryApiKeyHeader"/> 一致。</summary>
+    /// <remarks>
+    /// 未配置时退化为「仅后台登录用户可用」，外部系统调用会得到 503 与明确提示——
+    /// 宁可拒绝，也不能把全量生产数据裸露在未鉴权接口上。
+    /// </remarks>
+    public String QueryApiKey { get; set; }
+
+    /// <summary>查询统计 API 的密钥请求头名。</summary>
+    public String QueryApiKeyHeader { get; set; } = EfbmDefaults.QueryApiKeyHeader;
+
+    /// <summary>是否启用暴露面白名单：外网只放行上报、查询、健康检查与后台入口。</summary>
+    /// <remarks>
+    /// 默认 <c>true</c>；仅外网部署生效（内网联调仍需要 Swagger 等页面）。
+    /// 被拦下的路径返回 404 而不是 403，避免暴露「这里曾经有过什么」。
+    /// </remarks>
+    public Boolean ExposureAllowlistEnabled { get; set; } = true;
+
+    /// <summary>外网是否允许 Redis 指向公网地址；默认 <c>false</c>，启动自检会直接拒绝。</summary>
+    public Boolean AllowPublicRedis { get; set; }
+
     /// <summary>是否在启动时探测 Redis 版本（默认关闭，避免骨架阶段依赖 Redis 在线）。</summary>
     public Boolean ProbeRedisOnStartup { get; set; }
 
     /// <summary>启动时补齐「运维 / 只读」内置角色的后台菜单授权（FR-14）；现场手工调整过角色可关闭。</summary>
     public Boolean SeedAdminRoles { get; set; } = true;
+
+    /// <summary>魔方「在线用户」统计档位：<c>0</c> 不记录 / <c>1</c> 仅记录已登录用户 / <c>2</c> 记录所有访客。默认 <c>1</c>。</summary>
+    /// <remarks>
+    /// 为什么不用框架默认的 <c>2</c>：魔方 <c>RunTimeMiddleware</c> 对<b>每一个</b>请求都会写一次 <c>UserOnline</c>，
+    /// 而设备上报是机器流量——不带 Cookie 的匿名请求每次都被当成新会话，于是每条上报都要插入一行。
+    /// 这会与审计日志 / 业务落库争同一个库的写锁，SQLite 部署下实测直接抛
+    /// 「attempt to write a readonly database」把上报请求打成 500（等于丢数据），MySQL 下也是纯无谓开销。
+    /// 上报链路<b>不能</b>为无关的后台统计承担失败风险，因此默认只统计已登录用户（后台运维看得见在线会话，
+    /// 设备流量一行不写）；需要完整访客画像时在 MySQL 生产实例上改成 <c>2</c>。
+    /// </remarks>
+    public Int32 UserOnlineMode { get; set; } = 1;
 
     /// <summary>Beta 引导配置：后台发放页面（P4）上线前的临时凭据来源，默认关闭。</summary>
     public BetaOptions Beta { get; set; } = new();
@@ -134,6 +190,12 @@ public class EfbmOptions
             throw new InvalidOperationException("消费重试上限至少为 1（EFBM:ConsumerMaxRetry>=1）");
         if (BatchSize <= 0 || BatchIntervalMs <= 0)
             throw new InvalidOperationException("消费者攒批条数与间隔必须为正数");
+        if (PersistClaimIdleSeconds < 0)
+            throw new InvalidOperationException("接管空闲阈值不得为负数（EFBM:PersistClaimIdleSeconds>=0，0 表示不接管）");
+        if (PersistClaimIntervalSeconds <= 0 || PersistClaimBatchSize <= 0)
+            throw new InvalidOperationException("接管扫描间隔与批量必须为正数（EFBM:PersistClaimIntervalSeconds / PersistClaimBatchSize）");
+        if (UserOnlineMode is < 0 or > 2)
+            throw new InvalidOperationException("在线用户档位只能是 0（不记录）/ 1（仅已登录）/ 2（所有访客）（EFBM:UserOnlineMode）");
 
         Beta ??= new BetaOptions();
         Beta.ValidateOrThrow(IsInternet());
@@ -148,5 +210,16 @@ public class EfbmOptions
 
         if (String.Equals(AuthMode, "Anonymous", StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("外网部署禁止 Anonymous 认证模式");
+
+        if (HmacWindowSeconds <= 0)
+            throw new InvalidOperationException("HMAC 时间窗必须为正数（EFBM:HmacWindowSeconds>0）");
+
+        // Redis 是内网基础设施：外网部署把它指到公网，等于把全量消息流交给互联网
+        if (RedisEnabled && !AllowPublicRedis && !AccessPolicy.IsPrivateHost(RedisServer))
+            throw new InvalidOperationException($"外网部署的 Redis 必须位于内网（当前 EFBM:RedisServer={RedisServer}）；如确需公网请显式设置 AllowPublicRedis=true");
+
+        // 查询接口暴露全量生产数据，弱密钥比不设密钥更危险
+        if (!String.IsNullOrWhiteSpace(QueryApiKey) && QueryApiKey.Trim().Length < 16)
+            throw new InvalidOperationException("外网部署的查询接口密钥至少 16 位（EFBM:QueryApiKey）");
     }
 }

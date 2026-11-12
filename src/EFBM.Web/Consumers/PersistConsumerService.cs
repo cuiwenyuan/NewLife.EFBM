@@ -52,10 +52,20 @@ public sealed class PersistConsumerService : BackgroundService
         XTrace.WriteLine("落库消费者启动：group={0} consumer={1} batchSize={2} maxRetry={3}",
             _options.PersistGroup, _consumerName, _options.BatchSize, _options.ConsumerMaxRetry);
 
+        // 先接管上一轮进程遗留的未确认消息：消费者名含进程号，重启即换名，
+        // 旧消息不接管就永远不会被任何人读到（只挂在 XPENDING 里）
+        var nextClaim = DateTime.MinValue;
+
         try
         {
             while (!stoppingToken.IsCancellationRequested)
             {
+                if (DateTime.UtcNow >= nextClaim)
+                {
+                    nextClaim = DateTime.UtcNow.AddSeconds(Math.Max(1, _options.PersistClaimIntervalSeconds));
+                    await ClaimStaleAsync(stoppingToken).ConfigureAwait(false);
+                }
+
                 IReadOnlyList<QueueMessage> messages;
                 try
                 {
@@ -91,6 +101,30 @@ public sealed class PersistConsumerService : BackgroundService
         {
             _state.Stop();
             XTrace.WriteLine("落库消费者停止");
+        }
+    }
+
+    /// <summary>接管其他消费者遗留的未确认消息；队列不支持接管时静默跳过。</summary>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>异步任务；失败只记日志，不影响消费主循环。</returns>
+    private async Task ClaimStaleAsync(CancellationToken cancellationToken)
+    {
+        if (_options.PersistClaimIdleSeconds <= 0) return;
+        if (_queue is not IPelClaimer claimer) return;
+
+        try
+        {
+            var count = await claimer.ClaimStaleAsync(_options.PersistGroup, _consumerName,
+                _options.PersistClaimIdleSeconds * 1000, _options.PersistClaimBatchSize, cancellationToken).ConfigureAwait(false);
+            if (count > 0)
+                XTrace.WriteLine("接管其他消费者遗留未确认消息 {0} 条（空闲超过 {1}s）group={2} consumer={3}",
+                    count, _options.PersistClaimIdleSeconds, _options.PersistGroup, _consumerName);
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception ex)
+        {
+            // 接管失败不影响正常消费：下一轮再试
+            XTrace.WriteLine("接管遗留未确认消息失败（下一轮重试）：{0}: {1}", ex.GetType().Name, ex.Message);
         }
     }
 

@@ -15,6 +15,12 @@ public sealed class IngestRequest
     /// <summary>原始 <c>Authorization</c> 请求头，Basic 模式使用。</summary>
     public String Authorization { get; set; }
 
+    /// <summary>请求头 <c>X-Timestamp</c>（Unix 秒）；启用 HMAC 时必填。</summary>
+    public String HmacTimestamp { get; set; }
+
+    /// <summary>请求头 <c>X-Signature</c>；启用 HMAC 时必填。</summary>
+    public String HmacSignature { get; set; }
+
     /// <summary>来源 IP。</summary>
     public String SourceIp { get; set; }
 

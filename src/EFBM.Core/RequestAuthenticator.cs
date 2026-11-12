@@ -96,6 +96,12 @@ public sealed class RequestAuthenticator
         if (!String.Equals(credential.DeviceId, request.DeviceId, StringComparison.Ordinal))
             return AuthResult.Forbidden("凭据与报文 deviceId 不匹配");
 
+        // 可选 HMAC：签名用该设备自己的 AppSecret 计算，因此必须在凭据校验通过之后才能验
+        if (request.HmacEnabled && !AccessPolicy.VerifySignature(
+                credential.AppSecret, request.HmacTimestamp, request.RawJson,
+                request.HmacSignature, request.HmacWindowSeconds))
+            return AuthResult.Unauthorized("请求签名缺失、超时或不正确");
+
         return AuthResult.Ok();
     }
 

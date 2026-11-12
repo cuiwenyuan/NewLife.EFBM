@@ -22,7 +22,7 @@ public sealed class FaultDisposalServiceTests
     /// <summary>独立 SQLite 文件；显式建表绕开 XCode 的进程级表结构缓存。</summary>
     public FaultDisposalServiceTests()
     {
-        DAL.AddConnStr("EFBM", $"Data Source={_dbFile};Provider=SQLite", null, "SQLite");
+        DAL.AddConnStr("EFBM", ConnectionStringTuning.Normalize($"Data Source={_dbFile};Provider=SQLite"), null, "SQLite");
         XCodeSetting.Current.Migration = Migration.On;
         XCodeSetting.Current.ShowSQL = false;
 

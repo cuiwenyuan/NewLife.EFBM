@@ -20,12 +20,15 @@ namespace EFBM.Web.Areas.Admin.Controllers;
 public class FieldEvolutionController : EfbmAdminController
 {
     private readonly FieldEvolutionService _service;
+    private readonly FieldBackfillService _backfill;
 
     /// <summary>构造字段演进页控制器。</summary>
     /// <param name="service">字段演进服务。</param>
-    public FieldEvolutionController(FieldEvolutionService service)
+    /// <param name="backfill">字段回溯回填服务。</param>
+    public FieldEvolutionController(FieldEvolutionService service, FieldBackfillService backfill)
     {
         _service = service ?? throw new ArgumentNullException(nameof(service));
+        _backfill = backfill ?? throw new ArgumentNullException(nameof(backfill));
     }
 
     /// <summary>字段字典与新增字段监测页。</summary>
@@ -69,6 +72,34 @@ public class FieldEvolutionController : EfbmAdminController
         return result.Success
             ? Json(0, "已登记", new { id = result.Dict?.Id })
             : Json(409, result.Reason);
+    }
+
+    /// <summary>对已固化字段执行历史回溯回填（FLD-2c）。</summary>
+    /// <param name="eventName">只回填某个事件；为空表示全部事件。</param>
+    /// <param name="fieldName">只回填某个字段；为空表示登记表里所有已固化字段。</param>
+    /// <param name="days">只回填最近多少天；<c>≤0</c> 表示不限。</param>
+    /// <param name="dryRun">是否试运行（只统计不写库）。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>回填结果。</returns>
+    /// <remarks>数据量大时单次会受上限截断，返回里 <c>truncated=true</c> 表示可再点一次继续推进。</remarks>
+    [HttpPost]
+    [EntityAuthorize(PermissionFlags.Update)]
+    public async Task<ActionResult> Backfill(String eventName, String fieldName, Int32 days, Boolean dryRun, CancellationToken cancellationToken)
+    {
+        if (!Confirmed("Backfill")) return Json(400, ConfirmHint("回溯回填"));
+
+        var result = await _backfill.BackfillAsync(new BackfillRequest
+        {
+            Event = eventName,
+            FieldName = fieldName,
+            From = days > 0 ? DateTime.UtcNow.AddDays(-days) : null,
+            DryRun = dryRun,
+        }, OperatorName, cancellationToken).ConfigureAwait(false);
+
+        if (!result.Success) return Json(409, result.Reason);
+
+        var message = $"扫描 {result.Scanned} 条，回填 {result.Updated} 条" + (result.Truncated ? "（已达单次上限，可再次执行）" : String.Empty);
+        return Json(0, dryRun ? $"试运行：{message}" : message, result);
     }
 
     /// <summary>删除一条字段登记。</summary>

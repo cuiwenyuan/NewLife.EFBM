@@ -21,7 +21,11 @@
 
 ## 当前状态
 
-**P0 契约已冻结，P1 工程骨架与 P2 接收链路已交付。** 4 个工程（`EFBM.Web` / `EFBM.Data` / `EFBM.Core` / `EFBM.Tests`）统一 `net10.0`；`Model.xml` 十一张实体由 `xcode` 生成；契约层、字段字典、`EventKeyBuilder`、`RedisEventQueue`（惰性接入）、内外网配置与启动自检已落地；**P2 已实现单端点 `POST /api/events`、三模式按设备鉴权、`JsonDocument` 严格解析 + 宽容字段、一次 `XADD` 即 200、Redis 故障本地兜底与回灌**。字段字典按示例当前版本冻结为 `ParseVersion=1.0`；架构设计 D-11 已决议为 4 工程。`EFBM.Tests` 使用标准 `ProjectReference`（测试运行的是真实 DLL）；`dotnet build` 0 警告 0 错误，`dotnet test` 362 项通过。**P3 消费者与全量落库已完成**：Redis 模式下 `PersistConsumerService` 异步把 Stream 消息落 `DeviceEventRaw` / `WorkOrder` / `ProductionRecord` / `DeviceStatusLog` / `FaultRecord`，`EventKey` 幂等、死信不自动丢弃；纯日志模式无消费者，靠 `--replay` 把历史日志补录进库。**P4 安全裁剪（按各组最小已确认 ID 的 `XTRIM MINID`）已完成**：`StreamTrimHostedService` 周期驱动，绝不删除未确认消息，Redis < 6.2 自动停跑。**P4 后台已完成（全部魔方原生）**：报文 / 死信 / 字典 / 设备 / 凭据 / 生产记录 / 工单 / 故障 / 状态流水共 9 个页面继承魔方的 `ReadOnlyEntityController` / `EntityController`，列表 / 详情 / 搜索 / 分页 / 导出由内置模板渲染；另加 4 个手写页面——「数据维护」负责重放（单条 / 按范围 / 死信）、标记、导出与凭凭证清理，重放生成新 `MessageId` + `replayOf` 且不覆盖已落库数据，清理只删导出过的那部分；「故障处置」列出未关闭故障并支持手动关闭（`Status=2` + `ClearedAt`，不改设备事实）；「消费组监控」展示 Stream 长度 / 写入速率 / 各组 lag 与 PEL / 最慢组与僵尸组 / 安全裁剪水位；「字段演进」扫描报文里没登记的字段并支持现场补登（`FieldDict` 表，登记不自动建列）。权限走 `[EntityAuthorize]` 的「菜单 × 权限位」，角色在「角色」页维护，「运维」可查可改、「只读」只能看、清理只给管理员；写操作记魔方 `Log`（「日志」页可查），危险操作必须带 `X-Confirm` 确认头。
+**P0 契约已冻结，P1 工程骨架与 P2 接收链路已交付。** 4 个工程（`EFBM.Web` / `EFBM.Data` / `EFBM.Core` / `EFBM.Tests`）统一 `net10.0`；`Model.xml` 十一张实体由 `xcode` 生成；契约层、字段字典、`EventKeyBuilder`、`RedisEventQueue`（惰性接入）、内外网配置与启动自检已落地；**P2 已实现单端点 `POST /api/events`、三模式按设备鉴权、`JsonDocument` 严格解析 + 宽容字段、一次 `XADD` 即 200、Redis 故障本地兜底与回灌**。字段字典按示例当前版本冻结为 `ParseVersion=1.0`；架构设计 D-11 已决议为 4 工程。`EFBM.Tests` 使用标准 `ProjectReference`（测试运行的是真实 DLL）；`dotnet build` 0 警告 0 错误，`dotnet test` 491 项通过。**P3 消费者与全量落库已完成**：Redis 模式下 `PersistConsumerService` 异步把 Stream 消息落 `DeviceEventRaw` / `WorkOrder` / `ProductionRecord` / `DeviceStatusLog` / `FaultRecord`，`EventKey` 幂等、死信不自动丢弃；纯日志模式无消费者，靠 `--replay` 把历史日志补录进库。**P4 安全裁剪（按各组最小已确认 ID 的 `XTRIM MINID`）已完成**：`StreamTrimHostedService` 周期驱动，绝不删除未确认消息，Redis < 6.2 自动停跑。**P4 后台已完成（全部魔方原生）**：报文 / 死信 / 字典 / 设备 / 凭据 / 生产记录 / 工单 / 故障 / 状态流水共 9 个页面继承魔方的 `ReadOnlyEntityController` / `EntityController`，列表 / 详情 / 搜索 / 分页 / 导出由内置模板渲染；另加 4 个手写页面——「数据维护」负责重放（单条 / 按范围 / 死信）、标记、导出与凭凭证清理，重放生成新 `MessageId` + `replayOf` 且不覆盖已落库数据，清理只删导出过的那部分；「故障处置」列出未关闭故障并支持手动关闭（`Status=2` + `ClearedAt`，不改设备事实）；「消费组监控」展示 Stream 长度 / 写入速率 / 各组 lag 与 PEL / 最慢组与僵尸组 / 安全裁剪水位；「字段演进」扫描报文里没登记的字段并支持现场补登（`FieldDict` 表，登记不自动建列）。权限走 `[EntityAuthorize]` 的「菜单 × 权限位」，角色在「角色」页维护，「运维」可查可改、「只读」只能看、清理只给管理员；写操作记魔方 `Log`（「日志」页可查），危险操作必须带 `X-Confirm` 确认头。
+
+**P5 已全部完成（查询统计与安全收敛）**：① 统一查询统计 API 8 个端点（`/api/query/devices|orders|production|output|faults|stream`），`X-Query-Key` 定长时间比较、未配密钥时退化为「仅后台登录用户可用」（宁可 503 不裸奔），产量按工单取最大值再加总避免逐件重复计数；② 外网安全基线——暴露面白名单中间件（非白名单 404、`..` 一律拒绝）、可选 HMAC-SHA256 签名、来源 IP 白名单（CIDR / 通配）、公网 Redis 与弱密钥启动直接拒绝；③ 消费组登记（第 12 张表 `ConsumerGroup` + 后台页），组名 `efbm-` 前缀、**禁删禁复用**（重建会从头重放全量）；④ `/health` 六项依赖探测（DB / Redis / 角色 / 消费者 / 各消费组 / 请求日志），任一失败即 `degraded`；⑤ 字段回溯回填（后台页 + `--backfill-fields` 命令行，试运行不写库）；⑥ 跨消费者 PEL 接管，消费者重启不再让消息永久滞留；⑦ SQLite 连接串自动补 `Pooling=True`，落库吞吐从 20 条/秒提到 600+ 条/秒。
+
+**P6 本机部分已完成**：`tools/loadtest`（Node 单文件压测脚本）实测 20 并发 20000 条 → **603 QPS、P99 52ms、0 个 5xx**，2 万条积压 8 秒排空，强杀进程后重启 68 条遗留消息全部接管落库。仍需目标环境验收：MySQL 方言与双库切换、systemd / Nginx / IIS / 宝塔实机部署、外部消费组现场接入、真实设备联调、E2E（二期）。
 
 **尚未实现**：消费组监控页、字段演进页、故障手动关闭、设备状态 / 工单 / 故障的专用查询接口与统一统计 API、部署联调（P5~P6）。P3 消费者落库、P4 安全裁剪与魔方原生后台均已完成——Redis 模式下返回 200 的数据真正入库、Stream 按最小已确认 ID 安全收缩、后台可按条件检索 / 重放 / 先导出再删；但**压测与真实环境验收未做，仍未到生产上线标准**。真实 Redis ≥ 6.2 / MySQL 环境下的运行时验收与 P99 压测仍待补。功能完成状态以 [Doc/功能清单.md](Doc/功能清单.md) 为唯一持久状态源，请勿据文档进度判断系统可用。
 
@@ -57,7 +61,7 @@ tail -n 1 src/EFBM.Web/logs/api/api-$(date +%Y%m%d).log
 | 部署文档 | [部署文档.md](部署文档.md) | Linux 原生 / 宝塔 / Windows IIS 三条路径、配置清单、验证清单、升级回滚、故障速查 |
 | Beta 运行手册 | [Doc/Beta运行手册.md](Doc/Beta运行手册.md) | 最小版本范围、Redis 准备、启动与凭据引导、`/health` 与冒烟验收、故障排查、已知限制 |
 | 架构设计 | [Doc/架构设计.md](Doc/架构设计.md) | 分层与组件所在工程、核心流程时序、契约与不变量、36 条设计决策（D-11 决议 4 工程、D-15~D-19 为 P2 决策、D-20~D-21 为 Beta 决策、D-22~D-23 为文本日志决策、D-24~D-27 为 P3 消费落库决策、D-28 为安全裁剪、D-29 为后台接口先于页面、D-30 为宿主中间件顺序、D-31~D-32 为导出与清理、D-33 后台权限选魔方原生、D-34 审计与二次确认、D-35 字段登记表、D-36 自定义页基类）、扩展点、收口记录 |
-| 功能清单 | [Doc/功能清单.md](Doc/功能清单.md) | 拆分决策表、130 个功能点的实现 / 测试 / 注释三维状态、统计与待修复项 |
+| 功能清单 | [Doc/功能清单.md](Doc/功能清单.md) | 拆分决策表、133 个功能点的实现 / 测试 / 注释三维状态、统计与待修复项 |
 | 上报字段字典 | [Doc/上报字段字典.md](Doc/上报字段字典.md) | 当前版本冻结（`ParseVersion=1.0`）：信封 / `data` 字段矩阵、接收端生成字段、状态字典、`ParseWarning`、演进流程 |
 | 竞品分析 | [Doc/竞品分析.md](Doc/竞品分析.md) | 内部系统降级说明 + 可选技术路径对比（WHY NOT）与功能遴选结果 |
 | 原始样例 | [API上报接口数据示例.txt](API上报接口数据示例.txt) | 设备侧上报示例，已归纳进需求说明 |
@@ -73,7 +77,7 @@ tail -n 1 src/EFBM.Web/logs/api/api-$(date +%Y%m%d).log
 
 - **项目类型**：`net10.0` / ASP.NET Core 后端 + NewLife.Cube 管理后台（含内嵌后台消费者），无独立前端工程。
 - **编译命令**：`dotnet build EFBM.sln`（解决方案根目录，包含 4 个工程；当前 0 警告 0 错误）。
-- **测试命令**：`dotnet test EFBM.sln`（xUnit，当前 362 项通过，全部带中文 `DisplayName`；集成测试用 XCode + SQLite，P3 消费落库集成测试覆盖幂等 / 死信 / 全量留存，P4 安全裁剪纯算法单测覆盖，后台服务集成测试覆盖过滤 / 分页 / 标记 / 重放语义，`AdminAreaTests` 守住控制器结构 / 菜单 / 权限标注，`QueueMetricsTests` 覆盖最慢组与僵尸组判定和写入速率，`FaultDisposalServiceTests` 覆盖手动关闭语义，`FieldEvolutionServiceTests` 覆盖字段扫描与登记校验，双数据库矩阵与故障注入按开发计划 §7）。
+- **测试命令**：`dotnet test EFBM.sln`（xUnit，当前 491 项通过，全部带中文 `DisplayName`；集成测试用 XCode + SQLite，P3 消费落库集成测试覆盖幂等 / 死信 / 全量留存，P4 安全裁剪纯算法单测覆盖，后台服务集成测试覆盖过滤 / 分页 / 标记 / 重放语义，`AdminAreaTests` 守住控制器结构 / 菜单 / 权限标注，`QueueMetricsTests` 覆盖最慢组与僵尸组判定和写入速率，`FaultDisposalServiceTests` 覆盖手动关闭语义，`FieldEvolutionServiceTests` 覆盖字段扫描与登记校验，双数据库矩阵与故障注入按开发计划 §7）。
 - **核心工程**（4 个，按架构设计 D-11 决议收敛；Queue / Services / Consumers 是 `EFBM.Web` 内的目录分层）：
 
 | 工程 | 职责 |

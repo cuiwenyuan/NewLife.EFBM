@@ -157,7 +157,7 @@ public partial class FieldDict
         if (id < 0) return null;
 
         // 实体缓存
-        if (Meta.Session.Count < 1000) return Meta.Cache.Find(e => e.Id == id);
+        if (Meta.Session.Count < MaxCacheCount) return Meta.Cache.Find(e => e.Id == id);
 
         // 单对象缓存
         return Meta.SingleCache[id];
@@ -175,7 +175,7 @@ public partial class FieldDict
         if (fieldName.IsNullOrEmpty()) return null;
 
         // 实体缓存
-        if (Meta.Session.Count < 1000) return Meta.Cache.Find(e => e.Event.EqualIgnoreCase(@event) && e.FieldName.EqualIgnoreCase(fieldName));
+        if (Meta.Session.Count < MaxCacheCount) return Meta.Cache.Find(e => e.Event.EqualIgnoreCase(@event) && e.FieldName.EqualIgnoreCase(fieldName));
 
         return Find(_.Event == @event & _.FieldName == fieldName);
     }
@@ -188,7 +188,7 @@ public partial class FieldDict
         if (@event.IsNullOrEmpty()) return [];
 
         // 实体缓存
-        if (Meta.Session.Count < 1000) return Meta.Cache.FindAll(e => e.Event.EqualIgnoreCase(@event));
+        if (Meta.Session.Count < MaxCacheCount) return Meta.Cache.FindAll(e => e.Event.EqualIgnoreCase(@event));
 
         return FindAll(_.Event == @event);
     }

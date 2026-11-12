@@ -31,9 +31,13 @@ public sealed class PersistPipelineTests
     /// <summary>独立 SQLite 文件 + 真实 handler 组合。</summary>
     public PersistPipelineTests()
     {
-        DAL.AddConnStr("EFBM", $"Data Source={_dbFile};Provider=SQLite", null, "SQLite");
+        DAL.AddConnStr("EFBM", ConnectionStringTuning.Normalize($"Data Source={_dbFile};Provider=SQLite"), null, "SQLite");
         XCodeSetting.Current.Migration = Migration.On;
         XCodeSetting.Current.ShowSQL = false;
+
+        // 显式建表：本类不直接建表时依赖 Migration=On 的首次自动建表，而 XCode 的建表结果在进程内缓存，
+        // 前一个测试类建过表后换文件就不再建，表现为 "no such table"
+        DAL.Create("EFBM").CheckTables();
 
         var handlers = new IEventHandler[]
         {

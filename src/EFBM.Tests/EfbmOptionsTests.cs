@@ -66,6 +66,24 @@ public class EfbmOptionsTests
         Assert.Equal(4 * 1024 * 1024, options.MaxBodyBytes);
     }
 
+    [Fact(DisplayName = "配置_在线用户统计_默认仅记录已登录用户")]
+    public void UserOnline_DefaultIsLoggedInOnly()
+    {
+        // 魔方 RunTimeMiddleware 对每个请求都写一次 UserOnline；框架默认 2（所有访客）会让
+        // 匿名设备流量每条上报插一行，与业务落库争锁（SQLite 下实测 500）。必须默认 1。
+        var options = new EfbmOptions();
+
+        Assert.Equal(1, options.UserOnlineMode);
+    }
+
+    [Theory(DisplayName = "配置_在线用户档位越界_启动自检失败")]
+    [InlineData(-1)]
+    [InlineData(3)]
+    public void UserOnline_OutOfRange_FailsStartup(Int32 mode)
+    {
+        Assert.Throws<InvalidOperationException>(() => new EfbmOptions { UserOnlineMode = mode }.ValidateOrThrow());
+    }
+
     [Fact(DisplayName = "配置_未知认证模式_启动自检失败")]
     public void UnknownAuthMode_FailsStartup()
     {

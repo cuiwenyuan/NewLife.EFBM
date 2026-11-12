@@ -23,7 +23,7 @@ public sealed class SqliteSmokeTests : IDisposable
     public SqliteSmokeTests()
     {
         _dbFile = Path.Combine(Path.GetTempPath(), $"efbm-smoke-{Guid.NewGuid():N}.db");
-        var connStr = $"Data Source={_dbFile};Provider=SQLite";
+        var connStr = ConnectionStringTuning.Normalize($"Data Source={_dbFile};Provider=SQLite");
 
         // 实体固定使用 ConnName=EFBM；测试库用独立文件覆盖同名连接
         DAL.AddConnStr("EFBM", connStr, null, "SQLite");

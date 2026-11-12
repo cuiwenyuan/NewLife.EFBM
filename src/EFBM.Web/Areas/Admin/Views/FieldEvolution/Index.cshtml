@@ -199,6 +199,27 @@
                 </p>
             </div>
         </div>
+
+        <div class="card card-warning card-outline">
+            <div class="card-header"><h3 class="card-title"><i class="fa fa-history"></i> 回溯回填（固化后的历史数据）</h3></div>
+            <div class="card-body">
+                <p class="text-muted small">
+                    设备不重发历史报文，字段固化只对「从今天起」生效。这里把已固化字段的值从
+                    <code>RawJson</code> 补进 <code>ExtJson</code>，让历史数据也能被检索。
+                    只补空缺、<b>不覆盖已有值</b>、<b>不改原始报文</b>，每次执行都写审计。
+                </p>
+                <div class="form-inline">
+                    <input id="bf-event" class="form-control form-control-sm mr-2 mb-1" placeholder="事件（留空=全部）" style="width:200px" />
+                    <input id="bf-field" class="form-control form-control-sm mr-2 mb-1" placeholder="字段（留空=全部已固化）" style="width:200px" />
+                    <input id="bf-days" class="form-control form-control-sm mr-2 mb-1" type="number" min="0" placeholder="最近天数" style="width:120px" />
+                    <label class="mr-2 mb-1 font-weight-normal"><input id="bf-dry" type="checkbox" checked /> 试运行</label>
+                    <button class="btn btn-sm btn-warning mb-1" onclick="backfill()"><i class="fa fa-play"></i> 开始回填</button>
+                </div>
+                <p class="text-muted small mb-0 mt-2">
+                    单次最多 5000 条，超出时结果里会提示「已达单次上限」，再执行一次即可继续。
+                </p>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -263,5 +284,21 @@
 
         const json = await call('Delete', { id });
         if (json.code === 0) location.reload();
+    }
+
+    async function backfill() {
+        const eventName = val('bf-event').trim();
+        const fieldName = val('bf-field').trim();
+        const days = val('bf-days') || 0;
+        const dryRun = document.getElementById('bf-dry').checked;
+
+        const text = '回溯回填\n'
+            + '事件：' + (eventName || '全部') + '\n'
+            + '字段：' + (fieldName || '全部已固化') + '\n'
+            + '范围：' + (days > 0 ? '最近 ' + days + ' 天' : '不限') + '\n'
+            + (dryRun ? '（试运行，不写库）' : '（会写库，只补空缺）');
+        if (!confirm(text)) return;
+
+        await call('Backfill', { eventName, fieldName, days, dryRun });
     }
 </script>

@@ -32,7 +32,7 @@ public sealed class EventAdminServiceTests
     /// <summary>独立 SQLite 文件 + 假队列。</summary>
     public EventAdminServiceTests()
     {
-        DAL.AddConnStr("EFBM", $"Data Source={_dbFile};Provider=SQLite", null, "SQLite");
+        DAL.AddConnStr("EFBM", ConnectionStringTuning.Normalize($"Data Source={_dbFile};Provider=SQLite"), null, "SQLite");
         XCodeSetting.Current.Migration = Migration.On;
         XCodeSetting.Current.ShowSQL = false;
 

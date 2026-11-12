@@ -224,17 +224,38 @@ Invoke-RestMethod http://127.0.0.1:5000/health | ConvertTo-Json -Depth 5
 ```json
 {
   "status": "ok",
-  "redis": { "enabled": false, "connected": false, "streamLength": 0, "error": "Redis 未启用（EFBM:RedisEnabled=false）" },
+  "framework": "net10.0",
+  "deployment": "Intranet",
+  "database": { "connected": true, "provider": "SQLite", "error": null },
+  "redis": { "enabled": true, "connected": true, "streamLength": 0, "version": "8.10.3", "role": "master", "usedMemory": "1.08M", "connectedClients": 1 },
+  "consumer": { "running": true, "stalled": false, "lastTakeAt": "2026-11-12T15:46:20Z" },
+  "groups": [ { "name": "efbm-persist", "consumers": 1, "pending": 0, "lag": 0, "lagCapped": false, "isZombie": false, "isPersistGroup": true } ],
   "requestLog": { "enabled": true, "written": 12, "failed": 0, "currentFile": "/.../logs/api/api-20261112.log" },
-  "fallback": { "pending": 0, "error": null }
+  "fallback": { "pending": 0, "error": null },
+  "checks": [
+    { "name": "database", "status": "ok", "ok": true, "message": "连接正常" },
+    { "name": "redis", "status": "ok", "ok": true, "message": "连接正常" },
+    { "name": "redis-role", "status": "ok", "ok": true, "message": "当前角色 master" },
+    { "name": "consumer", "status": "ok", "ok": true, "message": "运行中" },
+    { "name": "groups", "status": "ok", "ok": true, "message": "各组消费正常" },
+    { "name": "request-log", "status": "ok", "ok": true, "message": "写入正常" }
+  ],
+  "time": "2026-11-12T15:46:24Z"
 }
 ```
 
-判读规则：
+`checks` 是**唯一判据**：六项（`database` / `redis` / `redis-role` / `consumer` / `groups` / `request-log`）任一 `ok=false`，`status` 即为 `degraded`。逐项含义：
 
-- `requestLog.failed > 0` → **必须立刻处理**（磁盘满 / 权限），此时数据是真的没落盘，`status` 会变 `degraded`。
-- `RedisEnabled=true` 且 `redis.connected=false` → 上报仍 200，走兜底表，`status=degraded`。
-- `RedisEnabled=false` → `redis.connected=false` 属正常，**不是故障**。
+| 检查项 | 什么时候算失败 | 处理 |
+| --- | --- | --- |
+| `database` | 连接或 `SELECT 1` 失败 | 查连接串 / 库是否可达 |
+| `redis` | `RedisEnabled=true` 却连不上 | 上报仍 200 走兜底；先修 Redis，回灌服务会自动补 |
+| `redis-role` | `role=slave`（写不进去就会降级到兜底） | 检查主从切换与哨兵配置 |
+| `consumer` | 落库消费者未运行，或超过 `ConsumerStallSeconds`（默认 600s）没有取消息 | 看进程日志是否卡在 DB / Redis |
+| `groups` | 存在僵尸组（`isZombie`）或落库组积压超阈值 | 看 §4.13「积压与 PEL 排查」 |
+| `request-log` | `failed>0` 或当前文件写不进去 | **高优**：这段时间的数据真的没落盘 |
+
+> `RedisEnabled=false`（纯日志模式）时 `redis` / `redis-role` / `consumer` / `groups` 不计入失败，只显示「未启用」。
 
 ### 4.4 日志回放补录（--replay）
 
@@ -375,6 +396,110 @@ redis-cli -n 5 XRANGE efbm:events - + COUNT 1
 （如 `X-Confirm: ReplayEvent`、`X-Confirm: Cleanup`、`X-Confirm: Close`、`X-Confirm: Register`、`X-Confirm: Delete`），缺头返回 400。
 页面上的确认弹窗只是配合它，脚本绕过弹窗也绕不过服务端。
 
+### 4.10 查询统计 API（P5，8 个端点）
+
+只读、分页、给外部系统（MES / 看板 / 报表）用。鉴权按顺序判定：**来源 IP 白名单 → `X-Query-Key` → 未配置密钥时仅后台登录用户**。
+
+```bash
+KEY="X-Query-Key: 换成你的密钥"
+BASE=http://127.0.0.1:5000/api/query
+
+curl -s -H "$KEY" "$BASE/devices"                     # 设备状态（原值 + 字典中文 + 最后上报时间）
+curl -s -H "$KEY" "$BASE/devices/FBOX-A01"            # 单台设备
+curl -s -H "$KEY" "$BASE/orders?page=1&pageSize=20"   # 工单进度
+curl -s -H "$KEY" "$BASE/orders/WO-20260723-001"      # 单张工单
+curl -s -H "$KEY" "$BASE/production?orderId=WO-20260723-001"   # 逐件明细
+curl -s -H "$KEY" "$BASE/output?groupBy=device"       # 产量统计（device / order 两种口径）
+curl -s -H "$KEY" "$BASE/faults?openOnly=true"        # 故障（含持续时长）
+curl -s -H "$KEY" "$BASE/stream"                      # 各消费组积压与 PEL
+```
+
+响应统一 `{"code":0,"message":"ok","data":{...}}`，`data` 内带 `items` / `total` / `page` / `pageSize` / `pageCount`。
+
+几个必须知道的语义：
+
+- **产量怎么算**：`output` **按工单取 `Max(CompletedQty)` 再加总**。逐件明细里同一张工单会重复出现同一个累计值，直接求和会把产量放大几十倍。
+- **截断**：`output` 最多扫 `MaxScanLimit`（默认 20 万）行，超了返回 `truncated=true` 而不是悄悄少算；看到它就缩小 `from` / `to` 再查。
+- **故障时长**：未清除的故障算到「现在」，已清除取 `ClearedAt - OccurredAt`，手动关闭的不进 `openOnly`。
+- **状态中文**：来自「状态字典」表，60 秒缓存；字典里没有的原值原样返回（`statusText` 与 `statusRaw` 相同），不会显示成空白。
+
+鉴权失败的返回：没配密钥且未登录 → `503`「查询接口未配置访问密钥」；密钥不匹配 → `401`。两者都不返回任何数据。
+
+### 4.11 安全基线（P5）
+
+三项独立开关，都可在启动日志「安全基线」一行看到生效状态：
+
+| 能力 | 配置 | 说明 |
+| --- | --- | --- |
+| 来源 IP 白名单 | `EFBM:AllowedIps` | 逗号 / 分号分隔，支持 CIDR（`10.0.0.0/8`）与通配 `*`。**空 = 不限制**；规则写错或来源无法解析一律拒绝 |
+| HMAC-SHA256 签名 | `EFBM:HmacEnabled` + `HmacWindowSeconds`（默认 300） | 请求头 `X-Timestamp`（Unix 秒）+ `X-Signature`；签名串 = `timestamp + "\n" + body`。**默认关闭**（现网设备不带签名），打开后缺失 / 超窗 / 不匹配一律 401 |
+| 外网暴露面白名单 | `EFBM:ExposureAllowlistEnabled`（默认 true，仅 `Deployment=Internet` 生效） | 只放行 `/api/events`、`/api/query`、`/health`、`/Admin`、`/CubeHome` 与静态资源；其余 **404**（不是 403，避免暴露路径存在过） |
+
+外网部署的启动自检还会直接拒绝：缺 HTTPS、启用匿名认证、Redis 指向公网、查询密钥短于 16 位、`Beta:Enabled=true`。
+
+```bash
+# 打开 HMAC 后，设备侧需要这样签名（示意，body 必须逐字一致）
+TS=$(date +%s)
+SIG=$(printf '%s\n%s' "$TS" "$BODY" | openssl dgst -sha256 -hmac "$APP_SECRET" -hex | awk '{print $2}')
+curl -X POST http://host/api/events -H "X-App-Key: $APP_KEY" -H "X-App-Secret: $APP_SECRET" \
+     -H "X-Timestamp: $TS" -H "X-Signature: $SIG" -H 'Content-Type: application/json' -d "$BODY"
+```
+
+### 4.12 字段固化后的回溯回填（--backfill-fields）
+
+新增字段只对「固化之后」的报文有列值，历史数据仍在 `RawJson` / `DataJson` 里。回填就是把这些历史值补进 `ExtJson`：
+
+```bash
+# 先试运行（不写库），看会补多少条
+dotnet EFBM.Web.dll --backfill-fields 30 --dry-run 2>/dev/null || true
+
+# 正式回填最近 30 天
+dotnet EFBM.Web.dll --backfill-fields 30
+```
+
+后台「字段演进」页也有同样的入口（事件 / 字段 / 天数 / 试运行）。规则：**只补 `ExtJson` 里缺失的键**，已有值不覆盖；每批 500 条（上限 5000）；每次执行写一条审计「字段回溯回填」。不填天数 = 全量扫描。
+
+### 4.13 积压与 PEL 排查
+
+```bash
+redis-cli -n 5 XLEN efbm:events                                  # 流总长度
+redis-cli -n 5 XINFO GROUPS efbm:events                          # 各组 entries-read / lag
+redis-cli -n 5 XPENDING efbm:events efbm-persist                 # 未确认条数 + 最小/最大 ID
+redis-cli -n 5 XINFO CONSUMERS efbm:events efbm-persist          # 每个消费者的 pending / idle
+```
+
+判读：
+
+- **lag 一直涨**：落库追不上。先看 `/health` 的 `consumer.running`，再看 §5 的日志有没有大量 `消费失败待重投`。SQLite 部署下确认连接串已带 `Pooling=True`（应用会自动补，日志里 `ConnectionStrings` 可核对）；本机实测补齐后落库 600+ 条/秒。
+- **pending 不降、`XINFO CONSUMERS` 里出现别的进程号**：那是上一次进程被强杀后遗留的 PEL。消费者启动时会**自动接管**（默认空闲 300s 以上、按 ID 翻页，日志里是「接管遗留未确认消息」）。想立刻收掉就重启一次，或把 `EFBM:PersistClaimIdleSeconds` 调小（例如 30）后重启。
+- **`groups` 检查报「僵尸组」**：外部组长时间不消费。先去「消费组登记」页确认归属与责任人，别直接删组——**删了重建会从头重放全量历史**。
+
+### 4.14 压测（tools/loadtest）
+
+```bash
+# 20 个设备号、20 并发、跑 30 秒
+node tools/loadtest/index.js --anonymous --devices 20 --concurrency 20 --duration 30
+
+# 定条数（用于验收：20000 条必须 0 个 5xx）
+node tools/loadtest/index.js --anonymous --devices 20 --concurrency 20 --count 20000
+
+# 带签名模式
+node tools/loadtest/index.js --key beta-fbox-a01 --secret beta-secret-2026 --devices 20
+```
+
+输出 QPS、P50/P95/P99、状态码分布与 5xx 计数；`--p99 500` 可指定达标线，超线退出码 1、出现 5xx 退出码 2，可直接接 CI。
+
+**本机实测（Debug 构建 + SQLite + 本机 Redis 8.10.3）**：
+
+| 场景 | 结果 |
+| --- | --- |
+| 20 并发 / 20000 条 | 603 QPS，P50 32ms、P95 36ms、P99 52ms，**0 个 5xx** |
+| 2 万条积压消化 | 8 秒排空（约 540 条/秒落库） |
+| 强杀进程后重启 | 68 条遗留 PEL 全部接管并落库，`XPENDING` 归零 |
+
+> 压测结论只代表本机；正式验收要在目标环境按真实设备节拍重跑，并把 MySQL 与 Redis 从库场景一起覆盖。
+
+
 ## 5. 文本日志格式
 
 一台设备一行，UTF-8 无 BOM，`\n` 结尾；字段固定、空值省略，可直接 `grep` / `jq`。
@@ -443,7 +568,16 @@ jq -r 'select(.status==200) | .raw' logs/api/api-20261112.log > replay.jsonl
 | `EFBM:MaxBodyBytes` | `4194304` | 仅防异常大包 |
 | `EFBM:Beta:Enabled` | `false` | 配置驱动凭据引导，**外网禁止** |
 | `EFBM:Beta:AppKey` / `AppSecret` | 空 | 引导凭据，Secret ≥ 8 位 |
-| `ConnectionStrings:EFBM` | `Data Source=EFBM.db;Provider=SQLite` | 换 MySQL 只改连接串 |
+| `ConnectionStrings:EFBM` | `Data Source=EFBM.db;Provider=SQLite` | 换 MySQL 只改连接串；SQLite 会自动补 `Pooling=True`（D-42，漏配会让落库掉到 20 条/秒） |
+| `EFBM:AllowedIps` | 空 | 上报与查询共用的来源 IP 白名单（CIDR / `*`），空 = 不限制 |
+| `EFBM:HmacEnabled` | `false` | 打开后要求 `X-Timestamp` + `X-Signature`，窗口 `HmacWindowSeconds`（默认 300） |
+| `EFBM:QueryApiKey` | 空 | 查询 API 密钥（≥16 位）；空 = 仅后台登录用户可调用 |
+| `EFBM:ExposureAllowlistEnabled` | `true` | 仅 `Deployment=Internet` 生效，非白名单路径 404 |
+| `EFBM:AllowPublicRedis` | `false` | 外网部署下 Redis 必须私网，否则拒绝启动 |
+| `EFBM:UserOnlineMode` | `1` | 魔方在线用户档位：0 不记录 / 1 仅已登录 / 2 所有访客。**设备匿名流量不要用 2**（每条上报都会写一次 `Membership` 库，SQLite 下会把上报打成 500） |
+| `EFBM:PersistClaimIdleSeconds` | `300` | 接管其他消费者遗留未确认消息的空闲阈值；`0` = 不接管 |
+| `EFBM:PersistClaimIntervalSeconds` | `300` | 接管扫描间隔 |
+| `EFBM:PersistClaimBatchSize` | `100` | 单页扫描条数（按 ID 游标翻页，单次最多 20 页） |
 
 > 生产环境的 `EFBM:Beta:*` 应改用后台发放（P4）；Beta 引导只是联调期临时通道。
 
@@ -462,7 +596,11 @@ jq -r 'select(.status==200) | .raw' logs/api/api-20261112.log > replay.jsonl
 | 503 | 队列、兜底、日志全失败 | 磁盘不可写，属于必须立即告警的故障 |
 | `/health` 里 `fallback.pending` 一直涨 | Redis 长期不可用 | 先修 Redis，回灌服务每 30 秒最多回灌 100 条 |
 | 启动报「外网部署禁止启用 Beta 引导」 | `Deployment=Internet` 且 `Beta:Enabled=true` | 关掉 Beta 引导，改用正式凭据 |
-| 启动报 `attempt to write a readonly database`（Cube 菜单初始化） | Cube 在 SQLite 下初始化后台菜单的已知噪音 | 不影响上报链路；后台属 P4，届时改用 MySQL 或单独排查 |
+| 启动或运行中偶发 `attempt to write a readonly database` | ① `EFBM:UserOnlineMode=2` 时魔方给每条匿名上报写一次 `UserOnline`，与业务落库争 SQLite 写锁；② 强杀进程留下的 `-wal` / `-shm` 与库状态不一致 | ① 保持默认 `1`（只统计已登录用户）；② 停掉进程后删掉同目录 `*.db-wal` / `*.db-shm` 再启动，遗留消息由 PEL 接管兜住 |
+| 查询接口返回 503「未配置访问密钥」 | `EFBM:QueryApiKey` 为空且调用方未登录后台 | 配上 ≥16 位密钥后重启，或改用后台登录会话调用 |
+| 上报偶发 401「请求签名缺失、超时或不正确」 | 打开了 `HmacEnabled`，但设备侧签名串或时间戳不对 | 签名串必须是 `timestamp + "\n" + body`，body 与发送内容逐字一致；同时核对设备时钟（窗口默认 300s） |
+| `XPENDING` 的 pending 只增不减 | 上一条进程被强杀，遗留的 PEL 没人认领 | 重启即可自动接管；或调小 `EFBM:PersistClaimIdleSeconds` 后再重启 |
+| 外网访问后台子路径返回 404 | 暴露面白名单只放行 `/Admin`、`/CubeHome` 前缀 | 属预期行为；确需新增入口请改 `ExposureAllowlistMiddleware.AllowedPrefixes` |
 
 ---
 
@@ -472,5 +610,6 @@ jq -r 'select(.status==200) | .raw' logs/api/api-20261112.log > replay.jsonl
 2. **纯日志模式不写兜底表**：避免同一份数据在 SQLite 里无限堆积；切到 Redis 模式后新请求才会进兜底表。
 3. **纯日志模式无消费者**：默认 `RedisEnabled=false` 时数据只进文本日志，靠 `--replay` 补录；启用 Redis 后 `PersistConsumerService` 常驻消费落库。
 4. **安全裁剪已交付（P4）**：`StreamTrimHostedService` 周期按各组最小已确认 ID 执行 `XTRIM MINID`，绝不删除未确认消息；需 Redis ≥ 6.2，低于该版本会在首次执行时报错并自动停跑（日志提示）；`EFBM:RedisEnabled=false` 纯日志模式不启动该任务。
-5. **未做压测**：P99 与吞吐需在目标环境用真实设备节拍验证（单件 > 1 秒，压力不大）；`FlushToDisk=true` 每条约 1ms，属于可接受成本。
-6. 下一步按《开发计划.md》：P3 消费者与全量落库（含日志回放工具）**已完成** → P4 后台与裁剪 → P5 部署监控 → P6 联调压测。
+5. **压测已做（本机）**：20 并发 20000 条 603 QPS、P99 52ms、0 个 5xx；2 万条积压 8 秒消化完（§4.14）。目标环境仍需按真实设备节拍与 MySQL / Redis 从库重跑，`FlushToDisk=true` 每条约 1ms 是可调成本。
+6. **未做**：MySQL 方言与双库切换演练、systemd / Nginx / IIS / 宝塔实机部署、外部消费组现场接入、真实设备联调、E2E（二期）。
+7. 下一步按《开发计划.md》：P0~P6 均已交付，剩余为上述环境相关验收。

@@ -11,6 +11,11 @@
 
     // 取不到指标时 Trim 是默认快照，这里再兜一层：监控页在任何情况下都不能因为空引用变成 500
     var trim = metrics.Trim ?? new EFBM.Core.TrimSnapshot();
+
+    // 消费组登记（WEB-9b）：已登记项按组名索引，未登记组单独提示
+    var registry = ViewBag.Registry as IDictionary<String, EFBM.Data.Entities.ConsumerGroup>
+        ?? new Dictionary<String, EFBM.Data.Entities.ConsumerGroup>();
+    var unregistered = ViewBag.UnregisteredGroups as String[] ?? Array.Empty<String>();
 }
 
 <div class="row">
@@ -76,11 +81,22 @@
             <b>僵尸组</b> = 有积压但消费者全部空闲超过 5 分钟，或根本没有消费者。
         </p>
 
+        @if (unregistered.Length > 0)
+        {
+            <div class="alert alert-warning">
+                <i class="fa fa-exclamation-triangle"></i>
+                发现 <b>@unregistered.Length</b> 个未登记的消费组：<code>@String.Join("、", unregistered)</code>。
+                未登记的组没有责任人，出问题时不知道找谁；请到
+                <a href="/Admin/ConsumerGroup">消费组登记</a> 页补登记（组名必须为 <code>efbm-系统名</code>）。
+            </div>
+        }
+
         <div class="table-responsive">
             <table class="table table-bordered table-hover table-sm">
                 <thead>
                     <tr>
                         <th style="width:190px">消费组</th>
+                        <th style="width:150px">归属 / 责任人</th>
                         <th style="width:110px">消费者</th>
                         <th style="width:90px">活跃中</th>
                         <th style="width:90px">PEL</th>
@@ -93,12 +109,13 @@
                 <tbody id="group-body">
                     @if (metrics.Groups.Count == 0)
                     {
-                        <tr><td colspan="8" class="text-center text-muted">没有消费组：还没有任何报文写入，或 Redis 不可用</td></tr>
+                        <tr><td colspan="9" class="text-center text-muted">没有消费组：还没有任何报文写入，或 Redis 不可用</td></tr>
                     }
                     else
                     {
                         foreach (var group in metrics.Groups)
                         {
+                            registry.TryGetValue(group.Name, out var entry);
                             <tr data-group="@group.Name" class="@(group.IsZombie ? "table-danger" : group.IsSlowest ? "table-warning" : "")">
                                 <td>
                                     <b>@group.Name</b>
@@ -113,6 +130,24 @@
                                     @if (group.IsZombie)
                                     {
                                         <span class="badge badge-danger">僵尸组</span>
+                                    }
+                                </td>
+                                <td>
+                                    @if (entry == null)
+                                    {
+                                        <span class="badge badge-secondary">未登记</span>
+                                    }
+                                    else
+                                    {
+                                        <span>@entry.SystemName</span>
+                                        @if (!String.IsNullOrWhiteSpace(entry.Owner))
+                                        {
+                                            <br /><small class="text-muted">@entry.Owner</small>
+                                        }
+                                        @if (!entry.Enabled)
+                                        {
+                                            <span class="badge badge-warning">已停用</span>
+                                        }
                                     }
                                 </td>
                                 <td data-cell="consumers">@group.Consumers</td>

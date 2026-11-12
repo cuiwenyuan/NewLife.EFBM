@@ -43,6 +43,21 @@ public static class StartupDiagnostics
             options.RequestLog.IncludeRaw, options.RequestLog.FlushToDisk);
         XTrace.WriteLine("Migration=On（Config/XCode.config）；目标框架 net10.0；端点 POST {0}（P2 已接入）", EfbmDefaults.EventsRoute);
 
+        XTrace.WriteLine("安全基线：HMAC={0}（时间窗{1}s） / IP白名单={2} / 查询密钥={3} / 外网暴露面白名单={4}",
+            options.HmacEnabled ? "开启" : "关闭",
+            options.HmacWindowSeconds,
+            AccessPolicy.ParseList(options.AllowedIps).Length == 0 ? "不限制" : $"{AccessPolicy.ParseList(options.AllowedIps).Length} 条",
+            String.IsNullOrWhiteSpace(options.QueryApiKey) ? "未配置（仅后台登录用户可用）" : "已配置",
+            options.IsInternet() ? (options.ExposureAllowlistEnabled ? "开启" : "关闭") : "不适用（内网）");
+
+        XTrace.WriteLine("在线用户统计（魔方 UserOnline）：{0}",
+            options.UserOnlineMode switch
+            {
+                0 => "不记录",
+                1 => "仅记录已登录用户（设备匿名流量不写库）",
+                _ => "记录所有访客（每条上报都会写一次 Membership 库，SQLite 下不建议）",
+            });
+
         if (!options.RedisEnabled)
             XTrace.WriteLine("注意：共享上报流已关闭（EFBM:RedisEnabled=false），数据只进本地兜底与文本日志，queued 恒为 false");
 

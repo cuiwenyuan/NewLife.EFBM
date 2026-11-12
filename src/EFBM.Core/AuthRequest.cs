@@ -21,6 +21,21 @@ public sealed class AuthRequest
 
     /// <summary>报文里的 <c>deviceId</c>；必须与凭据绑定设备一致。</summary>
     public String DeviceId { get; set; }
+
+    /// <summary>是否要求 HMAC 签名；由 <see cref="EfbmOptions.HmacEnabled"/> 决定。</summary>
+    public Boolean HmacEnabled { get; set; }
+
+    /// <summary>请求头 <c>X-Timestamp</c> 的值（Unix 秒）。</summary>
+    public String HmacTimestamp { get; set; }
+
+    /// <summary>请求头 <c>X-Signature</c> 的值。</summary>
+    public String HmacSignature { get; set; }
+
+    /// <summary>请求体原文；签名对它计算，逐字节一致。</summary>
+    public String RawJson { get; set; }
+
+    /// <summary>HMAC 允许的时钟偏差（秒）。</summary>
+    public Int32 HmacWindowSeconds { get; set; } = AccessPolicy.DefaultHmacWindowSeconds;
 }
 
 /// <summary>鉴权结果；<see cref="StatusCode"/> 为 0 表示通过，否则直接作为 HTTP 状态码返回。</summary>

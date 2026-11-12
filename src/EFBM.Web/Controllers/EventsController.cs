@@ -83,13 +83,24 @@ public sealed class EventsController : ControllerBase
 
         WarnIfPlainHttp();
 
+        // IP 白名单在读体之后校验：被拒的请求也要把原文写进日志，否则「谁被拦了」无从查证
+        var sourceIp = ResolveSourceIp();
+        if (!AccessPolicy.IsIpAllowed(sourceIp, AccessPolicy.ParseList(_options.AllowedIps)))
+        {
+            XTrace.WriteLine("拒绝来源 IP：{0}（不在 EFBM:AllowedIps 白名单内）", sourceIp);
+            await WriteRejectedLogAsync(startedAt, rawJson, "source ip not allowed").ConfigureAwait(false);
+            return Reject(403, "source ip not allowed");
+        }
+
         var request = new IngestRequest
         {
             RawJson = rawJson,
             AppKey = Header(_options.AppKeyHeader),
             AppSecret = Header(_options.AppSecretHeader),
             Authorization = Header("Authorization"),
-            SourceIp = ResolveSourceIp(),
+            HmacTimestamp = Header("X-Timestamp"),
+            HmacSignature = Header("X-Signature"),
+            SourceIp = sourceIp,
             ReceivedAt = startedAt,
             Method = Request.Method,
             Path = Request.Path.Value,

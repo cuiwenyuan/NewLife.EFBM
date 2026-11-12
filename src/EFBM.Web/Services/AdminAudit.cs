@@ -28,10 +28,23 @@ public static class AdminAudit
     /// <param name="summary">结果摘要，例如「删除 1234 条」「新消息 xxx」。</param>
     /// <param name="targetId">目标主键（报文 / 死信 ID），无则省略。</param>
     public static void Write(ControllerBaseX controller, String action, Boolean success, String summary, Int64? targetId = null)
+        => Write(action, success, summary, ManageProvider.User?.Name, targetId, controller?.HttpContext?.TraceIdentifier, controller?.UserHost);
+
+    /// <summary>写一条审计（服务层 / 命令行调用，没有控制器上下文）。</summary>
+    /// <param name="action">动作中文名。</param>
+    /// <param name="success">是否成功。</param>
+    /// <param name="summary">结果摘要。</param>
+    /// <param name="operatorName">操作人；为空时记 <c>system</c>。</param>
+    /// <param name="targetId">目标主键，无则省略。</param>
+    public static void Write(String action, Boolean success, String summary, String operatorName, Int64? targetId = null)
+        => Write(action, success, summary, operatorName, targetId, null, null);
+
+    /// <summary>实际写入，集中处理长度截断与异常吞掉。</summary>
+    private static void Write(String action, Boolean success, String summary, String operatorName, Int64? targetId, String traceId, String userHost)
     {
         try
         {
-            var user = ManageProvider.User?.Name;
+            var user = String.IsNullOrWhiteSpace(operatorName) ? "system" : operatorName;
 
             new Log
             {
@@ -41,9 +54,9 @@ public static class AdminAudit
                 Success = success,
                 UserName = user,
                 Ex4 = Truncate(summary, Ex4Length),
-                TraceId = controller?.HttpContext?.TraceIdentifier,
+                TraceId = traceId,
                 CreateUser = user,
-                CreateIP = controller?.UserHost,
+                CreateIP = userHost,
                 CreateTime = DateTime.Now,
             }.Insert();
         }

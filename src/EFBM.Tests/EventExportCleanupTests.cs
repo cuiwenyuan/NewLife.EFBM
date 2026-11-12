@@ -37,7 +37,7 @@ public sealed class EventExportCleanupTests
     /// <summary>独立 SQLite 文件 + 导出目录。</summary>
     public EventExportCleanupTests()
     {
-        DAL.AddConnStr("EFBM", $"Data Source={_dbFile};Provider=SQLite", null, "SQLite");
+        DAL.AddConnStr("EFBM", ConnectionStringTuning.Normalize($"Data Source={_dbFile};Provider=SQLite"), null, "SQLite");
         XCodeSetting.Current.Migration = Migration.On;
         XCodeSetting.Current.ShowSQL = false;
 

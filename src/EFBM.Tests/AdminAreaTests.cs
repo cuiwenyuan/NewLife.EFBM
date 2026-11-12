@@ -34,6 +34,7 @@ public class AdminAreaTests
         typeof(FaultDisposalController),
         typeof(QueueMonitorController),
         typeof(FieldEvolutionController),
+        typeof(ConsumerGroupController),
     };
 
     [Theory(DisplayName = "后台控制器_都挂魔方区域与菜单特性")]
@@ -61,6 +62,7 @@ public class AdminAreaTests
     [InlineData(typeof(WorkOrderController))]
     [InlineData(typeof(FaultRecordController))]
     [InlineData(typeof(DeviceStatusLogController))]
+    [InlineData(typeof(ConsumerGroupController))]
     public void EntityController_ReadActionsRequireDetail(Type type)
     {
         Assert.Equal(PermissionFlags.Detail, PermissionOf(type, "Index"));
@@ -71,6 +73,7 @@ public class AdminAreaTests
     [InlineData(typeof(StatusDictController))]
     [InlineData(typeof(DeviceController))]
     [InlineData(typeof(AppCredentialController))]
+    [InlineData(typeof(ConsumerGroupController))]
     public void EntityController_WriteActionsRequireFlags(Type type)
     {
         Assert.Equal(PermissionFlags.Insert, PermissionOf(type, "Add"));
@@ -118,6 +121,7 @@ public class AdminAreaTests
 
         Assert.Equal(PermissionFlags.Detail, PermissionOf(type, nameof(FieldEvolutionController.Index)));
         Assert.Equal(PermissionFlags.Update, PermissionOf(type, nameof(FieldEvolutionController.Register)));
+        Assert.Equal(PermissionFlags.Update, PermissionOf(type, nameof(FieldEvolutionController.Backfill)));
         Assert.Equal(PermissionFlags.Delete, PermissionOf(type, nameof(FieldEvolutionController.Delete)));
     }
 
@@ -167,7 +171,7 @@ public class AdminAreaTests
         Assert.Contains("Confirmed(", Slice(fault, "public async Task<ActionResult> Close("));
 
         var field = File.ReadAllText(RepoPaths.Find("src/EFBM.Web/Areas/Admin/Controllers/FieldEvolutionController.cs"));
-        foreach (var action in new[] { "Register", "Delete" })
+        foreach (var action in new[] { "Register", "Delete", "Backfill" })
         {
             Assert.Contains("Confirmed(", Slice(field, $"public async Task<ActionResult> {action}("));
         }

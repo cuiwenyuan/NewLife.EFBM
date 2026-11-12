@@ -1,6 +1,7 @@
 using System.Text.Json;
 using EFBM.Core;
 using NewLife.Caching;
+using NewLife.Log;
 using NewLife.Caching.Queues;
 
 namespace EFBM.Web.Queue;
@@ -21,7 +22,7 @@ namespace EFBM.Web.Queue;
 /// 本地兜底写入后的回灌由 P2 的 <c>FallbackRequeueService</c> 负责。
 /// 本类只负责写入、读取与确认，不自动裁剪、不自动丢弃。
 /// </remarks>
-public sealed class RedisEventQueue : IEventQueue, IEventQueueProbe, IQueueMetricsProbe, IStreamTrimmer, IDisposable
+public sealed class RedisEventQueue : IEventQueue, IEventQueueProbe, IQueueMetricsProbe, IStreamTrimmer, IPelClaimer, IDisposable
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -119,6 +120,67 @@ public sealed class RedisEventQueue : IEventQueue, IEventQueueProbe, IQueueMetri
         return result;
     }
 
+    /// <summary>把其他消费者空闲超时的未确认消息改判给当前消费者。</summary>
+    /// <param name="group">消费组名。</param>
+    /// <param name="consumer">当前消费者名（接管后的归属）。</param>
+    /// <param name="minIdleMs">空闲阈值（毫秒）；<c>&lt;=0</c> 时不做任何事。</param>
+    /// <param name="count">单轮最多扫描的 pending 条数。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>实际接管成功的条数。</returns>
+    /// <remarks>
+    /// 为什么必须有这一步：消费者名是「主机名@进程号」，每次重启都换名字，旧消费者留在 PEL 里的
+    /// 未确认消息不会再被任何人读到（新消费者只读自己的 PEL），既落不了库也进不了死信，
+    /// 只在 <c>XPENDING</c> 里永久挂着。压测实测三轮重启后挂着 3 个僵尸消费者、264 条积压。
+    ///
+    /// 只接管「空闲超过阈值」的别人的消息：正在处理的消息被别人抢走会重复处理（幂等能兜住，
+    /// 但没必要），阈值远大于单条处理耗时（毫秒级），正常运行时一条都命中不了。
+    /// 接管成功后这些消息就出现在当前消费者的 PEL 里，下一轮 <see cref="TakeAsync"/> 的
+    /// <c>id=0</c> 读取会自然把它们取出来重投，不需要在此处解析消息体。
+    /// </remarks>
+    public Task<Int32> ClaimStaleAsync(String group, String consumer, Int32 minIdleMs, Int32 count, CancellationToken cancellationToken = default)
+    {
+        if (String.IsNullOrEmpty(group)) throw new ArgumentNullException(nameof(group));
+        if (String.IsNullOrEmpty(consumer)) throw new ArgumentNullException(nameof(consumer));
+        if (minIdleMs <= 0 || count <= 0) return Task.FromResult(0);
+
+        EnsureGroup();
+
+        // 按游标翻页：一批最多 count 条，但现场遗留可能是几百上千条（一次强杀就可能是整个批次）。
+        // 只扫一页会让剩余部分干等下一个扫描周期；这里用上一页最后一条的 ID 做下一页的起点，
+        // 已经抢过来的消息（归属变成自己）也就不会被重复扫到。
+        var claimed = 0;
+        var start = "-";
+        for (var round = 0; round < PelClaimRules.MaxClaimRounds; round++)
+        {
+            var items = _stream.Pending(group, start, "+", count);
+            if (items == null || items.Length == 0) break;
+
+            var roundClaimed = 0;
+            foreach (var item in items)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                if (!PelClaimRules.ShouldClaim(item.Consumer, consumer, item.Idle, minIdleMs)) continue;
+
+                // XCLAIM 只有真正抢到才返回消息体；被别的实例同时抢走时返回空，计入未接管
+                var raw = _stream.Claim(group, consumer, item.Id, minIdleMs);
+                if (raw == null || raw.Length == 0) continue;
+
+                claimed++;
+                roundClaimed++;
+                XTrace.WriteLine("接管遗留未确认消息 group={0} consumer={1} streamId={2} 原归属={3} 空闲={4}ms 投递次数={5}",
+                    group, consumer, item.Id, item.Consumer, item.Idle, item.Delivery);
+            }
+
+            start = items[^1].Id;
+
+            // 本页不足一整批说明已到 PEL 末尾；本页一条都没抢到说明剩下的都不该抢（自己的或未超时）
+            if (items.Length < count || roundClaimed == 0) break;
+        }
+
+        return Task.FromResult(claimed);
+    }
+
     /// <summary>业务处理成功后显式确认；失败不调用本方法，消息留在 PEL 由 AutoClaim 重投。</summary>
     /// <param name="group">消费组名。</param>
     /// <param name="streamId">Stream 消息 ID。</param>
@@ -175,6 +237,7 @@ public sealed class RedisEventQueue : IEventQueue, IEventQueueProbe, IQueueMetri
         {
             var info = _stream.GetInfo();
             var groups = _stream.GetGroups() ?? [];
+            var redisInfo = ReadRedisInfo();
 
             var list = new List<QueueGroupMetric>(groups.Length);
             foreach (var group in groups)
@@ -212,7 +275,9 @@ public sealed class RedisEventQueue : IEventQueue, IEventQueueProbe, IQueueMetri
                 LastId = info?.LastId,
                 LastGenerated = info?.LastGenerated ?? DateTime.MinValue,
                 RedisVersion = _redis.Version?.ToString(),
-                UsedMemory = ReadMemory(),
+                UsedMemory = redisInfo.Memory,
+                RedisRole = redisInfo.Role,
+                ConnectedClients = redisInfo.Clients,
                 PublishRate = TakeRate(sampledAt, info?.Length ?? _stream.Count),
                 SampledAt = sampledAt,
                 Trim = _lastTrim ?? new TrimSnapshot { Enabled = _options.SafeTrimEnabled, Message = "尚未执行" },
@@ -250,17 +315,25 @@ public sealed class RedisEventQueue : IEventQueue, IEventQueueProbe, IQueueMetri
             : (count, false);
     }
 
-    /// <summary>读取 Redis 已用内存；取不到时返回 <c>null</c>，不影响其它指标。</summary>
-    private String ReadMemory()
+    /// <summary>读取 Redis 内存、角色与客户端连接数；取不到时返回空值，不影响其它指标。</summary>
+    private (String Memory, String Role, Int32? Clients) ReadRedisInfo()
     {
         try
         {
             var info = _redis.GetInfo(true);
-            return info != null && info.TryGetValue("used_memory_human", out var value) ? value : null;
+            if (info == null) return (null, null, null);
+
+            info.TryGetValue("used_memory_human", out var memory);
+            info.TryGetValue("role", out var role);
+            Int32? clients = info.TryGetValue("connected_clients", out var value) && Int32.TryParse(value, out var parsed)
+                ? parsed
+                : null;
+
+            return (memory, role, clients);
         }
         catch (Exception)
         {
-            return null;
+            return (null, null, null);
         }
     }
 

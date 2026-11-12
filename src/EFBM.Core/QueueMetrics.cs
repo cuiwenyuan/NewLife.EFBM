@@ -116,6 +116,13 @@ public sealed class QueueMetrics
     /// <summary>Redis 已用内存（人类可读，例如 <c>894.43K</c>）。</summary>
     public String UsedMemory { get; init; }
 
+    /// <summary>Redis 角色：<c>master</c> / <c>slave</c> / 未知时为空。</summary>
+    /// <remarks>健康检查据此判断「连的是主节点还是从节点」：连到从节点时写入会失败，必须能一眼看出来。</remarks>
+    public String RedisRole { get; init; }
+
+    /// <summary>Redis 当前客户端连接数。</summary>
+    public Int32? ConnectedClients { get; init; }
+
     /// <summary>写入速率（条/秒），基于两次采样差值；首次采样为 <c>null</c>。</summary>
     public Double? PublishRate { get; init; }
 

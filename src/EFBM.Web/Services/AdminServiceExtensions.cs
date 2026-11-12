@@ -18,6 +18,10 @@ public static class AdminServiceExtensions
         // 故障处置与字段演进同样无状态（状态在库表里），单例即可
         services.AddSingleton<FaultDisposalService>();
         services.AddSingleton<FieldEvolutionService>();
+        services.AddSingleton<FieldBackfillService>();
+
+        // 统一查询统计 API（P5）：只读查询，无状态，单例足够
+        services.AddSingleton<QueryApiService>();
 
         return services;
     }
