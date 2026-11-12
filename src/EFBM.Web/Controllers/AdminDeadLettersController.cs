@@ -1,3 +1,5 @@
+using EFBM.Core.Security;
+using EFBM.Web.Security;
 using EFBM.Web.Services;
 using Microsoft.AspNetCore.Mvc;
 
@@ -29,6 +31,7 @@ public sealed class AdminDeadLettersController : AdminControllerBase
     /// <param name="cancellationToken">取消令牌。</param>
     /// <returns>分页列表，含错误摘要与重放状态。</returns>
     [HttpGet]
+    [RequireAdminOperation(AdminOperation.QueryDeadLetters)]
     public async Task<ObjectResult> List([FromQuery] DeadLetterQuery query, CancellationToken cancellationToken)
     {
         if (query.From.HasValue && query.To.HasValue && query.From > query.To)
@@ -43,6 +46,7 @@ public sealed class AdminDeadLettersController : AdminControllerBase
     /// <param name="cancellationToken">取消令牌。</param>
     /// <returns>死信详情或 404。</returns>
     [HttpGet("{id:long}")]
+    [RequireAdminOperation(AdminOperation.ViewDeadLetterDetail)]
     public async Task<ObjectResult> Get(Int64 id, CancellationToken cancellationToken)
     {
         var entity = await _query.GetDeadLetterAsync(id, cancellationToken).ConfigureAwait(false);
@@ -69,6 +73,7 @@ public sealed class AdminDeadLettersController : AdminControllerBase
     /// <param name="cancellationToken">取消令牌。</param>
     /// <returns>新消息 ID 与 Stream 消息 ID，或失败原因。</returns>
     [HttpPost("{id:long}/replay")]
+    [RequireAdminOperation(AdminOperation.ReplayDeadLetter)]
     public async Task<ObjectResult> Replay(Int64 id, CancellationToken cancellationToken)
     {
         var result = await _replay.ReplayDeadLetterAsync(id, OperatorName, cancellationToken).ConfigureAwait(false);

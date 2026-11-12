@@ -1,3 +1,5 @@
+using EFBM.Core.Security;
+using EFBM.Web.Security;
 using EFBM.Web.Services;
 using Microsoft.AspNetCore.Mvc;
 
@@ -37,6 +39,7 @@ public sealed class AdminEventsController : AdminControllerBase
     /// <param name="cancellationToken">取消令牌。</param>
     /// <returns>分页列表（不含报文原文大字段）。</returns>
     [HttpGet]
+    [RequireAdminOperation(AdminOperation.QueryEvents)]
     public async Task<ObjectResult> List([FromQuery] EventQuery query, CancellationToken cancellationToken)
     {
         if (query.From.HasValue && query.To.HasValue && query.From > query.To)
@@ -51,6 +54,7 @@ public sealed class AdminEventsController : AdminControllerBase
     /// <param name="cancellationToken">取消令牌。</param>
     /// <returns>详情或 404。</returns>
     [HttpGet("{id:long}")]
+    [RequireAdminOperation(AdminOperation.ViewEventDetail)]
     public async Task<ObjectResult> Get(Int64 id, CancellationToken cancellationToken)
     {
         var detail = await _query.GetAsync(id, cancellationToken).ConfigureAwait(false);
@@ -63,6 +67,7 @@ public sealed class AdminEventsController : AdminControllerBase
     /// <param name="cancellationToken">取消令牌。</param>
     /// <returns>标记结果或 404。</returns>
     [HttpPost("{id:long}/mark")]
+    [RequireAdminOperation(AdminOperation.MarkEvent)]
     public async Task<ObjectResult> Mark(Int64 id, [FromBody] MarkRequest request, CancellationToken cancellationToken)
     {
         request ??= new MarkRequest();
@@ -76,6 +81,7 @@ public sealed class AdminEventsController : AdminControllerBase
     /// <param name="cancellationToken">取消令牌。</param>
     /// <returns>新消息 ID 与 Stream 消息 ID，或失败原因。</returns>
     [HttpPost("{id:long}/replay")]
+    [RequireAdminOperation(AdminOperation.ReplayEvent)]
     public async Task<ObjectResult> Replay(Int64 id, CancellationToken cancellationToken)
     {
         var result = await _replay.ReplayEventAsync(id, OperatorName, cancellationToken).ConfigureAwait(false);
@@ -105,6 +111,7 @@ public sealed class AdminEventsController : AdminControllerBase
     /// <param name="cancellationToken">取消令牌。</param>
     /// <returns>命中 / 尝试 / 成功 / 失败统计与错误摘要。</returns>
     [HttpPost("replay-range")]
+    [RequireAdminOperation(AdminOperation.ReplayEvent)]
     public async Task<ObjectResult> ReplayRange([FromBody] ReplayRangeRequest request, CancellationToken cancellationToken)
     {
         request ??= new ReplayRangeRequest();
@@ -126,6 +133,7 @@ public sealed class AdminEventsController : AdminControllerBase
     /// <param name="cancellationToken">取消令牌。</param>
     /// <returns>凭证 ID、条数、文件哈希与过期时间。</returns>
     [HttpPost("export")]
+    [RequireAdminOperation(AdminOperation.ExportEvents)]
     public async Task<ObjectResult> Export([FromQuery] DateTime? from, [FromQuery] DateTime? to, CancellationToken cancellationToken)
     {
         if (!from.HasValue || !to.HasValue) return Failure(400, "必须同时提供 from 与 to（接收时间范围）");
@@ -140,6 +148,7 @@ public sealed class AdminEventsController : AdminControllerBase
     /// <param name="ticketId">导出凭证 ID。</param>
     /// <returns>文件流；凭证无效 404。</returns>
     [HttpGet("export/{ticketId}/download")]
+    [RequireAdminOperation(AdminOperation.DownloadExport)]
     public IActionResult Download(String ticketId)
     {
         var ticket = _export.FindTicket(ticketId);
@@ -154,6 +163,7 @@ public sealed class AdminEventsController : AdminControllerBase
     /// <param name="cancellationToken">取消令牌。</param>
     /// <returns>实际删除条数与导出条数；凭证无效 409。</returns>
     [HttpPost("cleanup")]
+    [RequireAdminOperation(AdminOperation.CleanupEvents)]
     public async Task<ObjectResult> Cleanup([FromBody] CleanupRequest request, CancellationToken cancellationToken)
     {
         request ??= new CleanupRequest();

@@ -1,3 +1,5 @@
+using EFBM.Core.Security;
+
 namespace EFBM.Core;
 
 /// <summary><c>appsettings.json</c> 中 <c>EFBM</c> 配置节的强类型视图。</summary>
@@ -98,6 +100,9 @@ public class EfbmOptions
     /// <summary>是否在启动时探测 Redis 版本（默认关闭，避免骨架阶段依赖 Redis 在线）。</summary>
     public Boolean ProbeRedisOnStartup { get; set; }
 
+    /// <summary>后台三角色鉴权配置（FR-14）：现场角色名 → 本系统角色的别名表。</summary>
+    public AdminOptions Admin { get; set; } = new();
+
     /// <summary>Beta 引导配置：后台发放页面（P4）上线前的临时凭据来源，默认关闭。</summary>
     public BetaOptions Beta { get; set; } = new();
 
@@ -136,6 +141,9 @@ public class EfbmOptions
 
         RequestLog ??= new RequestLogOptions();
         RequestLog.ValidateOrThrow();
+
+        Admin ??= new AdminOptions();
+        Admin.ValidateOrThrow();
 
         if (!IsInternet()) return;
 
