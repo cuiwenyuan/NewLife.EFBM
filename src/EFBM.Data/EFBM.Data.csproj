@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <AssemblyTitle>EFBM 数据层</AssemblyTitle>
+    <Description>NewLife.XCode 实体：Model.xml 由 xcode 工具生成 .cs（可覆盖）与 .Biz.cs（不覆盖）</Description>
+    <!-- 生成代码中的 MaxCacheCount 字段暂未使用，不因生成器模板产生噪音警告 -->
+    <NoWarn>$(NoWarn);CS0414;CS1591</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="NewLife.Core" Version="11.11.2026.201" />
+    <PackageReference Include="NewLife.XCode" Version="11.24.2026.201" />
+    <PackageReference Include="XCode.SQLite" Version="11.24.2026.201" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\EFBM.Core\EFBM.Core.csproj" />
+  </ItemGroup>
+
+  <!-- 模型文件随源码入库，生成的实体由 xcode src/EFBM.Data/Model.xml 重建 -->
+  <ItemGroup>
+    <None Include="Model.xml" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

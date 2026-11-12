@@ -1,0 +1,252 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<EntityModel xmlns:xs="http://www.w3.org/2001/XMLSchema-instance" xs:schemaLocation="https://newlifex.com https://newlifex.com/Model202509.xsd" Document="https://newlifex.com/xcode/model" ModelVersion="2.0.2026.130" xmlns="https://newlifex.com/Model202509.xsd">
+  <Option>
+    <!--类名模板。其中{name}替换为Table.Name，如{name}Model/I{name}Dto等-->
+    <ClassNameTemplate />
+    <!--显示名模板。其中{displayName}替换为Table.DisplayName-->
+    <DisplayNameTemplate />
+    <!--基类。可能包含基类和接口，其中{name}替换为Table.Name-->
+    <BaseClass>Entity</BaseClass>
+    <!--命名空间-->
+    <Namespace>EFBM.Data.Entities</Namespace>
+    <!--引用命名空间-->
+    <ExtendNameSpace />
+    <!--输出目录-->
+    <Output>.\Entities\</Output>
+    <!--是否使用中文文件名。默认false-->
+    <ChineseFileName>False</ChineseFileName>
+    <!--用于生成Copy函数的参数类型。例如{name}或I{name}-->
+    <ModelNameForCopy />
+    <!--带有索引器。实现IModel接口-->
+    <HasIModel>False</HasIModel>
+    <!--可为null上下文。生成String?等-->
+    <Nullable>False</Nullable>
+    <!--数据库连接名-->
+    <ConnName>EFBM</ConnName>
+    <!--模型类模版。设置后生成模型类，用于接口数据传输，例如{name}Model-->
+    <ModelClass />
+    <!--模型类输出目录。默认当前目录的Models子目录-->
+    <ModelsOutput>.\Models\</ModelsOutput>
+    <!--模型接口模版。设置后生成模型接口，用于约束模型类和实体类，例如I{name}-->
+    <ModelInterface />
+    <!--模型接口输出目录。默认当前目录的Interfaces子目录-->
+    <InterfacesOutput>.\Interfaces\</InterfacesOutput>
+    <!--用户实体转为模型类的模型类。例如{name}或{name}DTO-->
+    <ModelNameForToModel />
+    <!--命名格式。Default/Upper/Lower/Underline-->
+    <NameFormat>Default</NameFormat>
+    <!--魔方区域显示名-->
+    <DisplayName>折盒机上报数据</DisplayName>
+    <!--魔方控制器输出目录-->
+    <CubeOutput />
+  </Option>
+  <Tables>
+    <Table Name="Device" Description="设备">
+      <Columns>
+        <Column Name="Id" DataType="Int64" Identity="True" PrimaryKey="True" Description="编号" />
+        <Column Name="DeviceId" DataType="String" Master="True" Description="设备编号。与报文 deviceId 一致" />
+        <Column Name="Name" DataType="String" Description="设备名称" />
+        <Column Name="StatusRaw" DataType="String" Description="当前状态原值。不做枚举校验" />
+        <Column Name="LastReportTime" DataType="DateTime" Description="最后上报时间 UTC" />
+        <Column Name="Enabled" DataType="Boolean" Description="启用" />
+        <Column Name="ExtJson" DataType="String" Length="-1" Description="扩展字段 JSON。新增字段固化前的载体" />
+        <Column Name="Remark" DataType="String" Length="500" Description="备注" />
+        <Column Name="CreateTime" DataType="DateTime" Description="创建时间" Category="扩展" />
+        <Column Name="CreateIP" DataType="String" Description="创建地址" Category="扩展" />
+        <Column Name="UpdateTime" DataType="DateTime" Description="更新时间" Category="扩展" />
+        <Column Name="UpdateIP" DataType="String" Description="更新地址" Category="扩展" />
+      </Columns>
+      <Indexes>
+        <Index Columns="DeviceId" Unique="True" />
+        <Index Columns="LastReportTime" />
+      </Indexes>
+    </Table>
+    <Table Name="AppCredential" Description="设备凭据">
+      <Columns>
+        <Column Name="Id" DataType="Int64" Identity="True" PrimaryKey="True" Description="编号" />
+        <Column Name="AppKey" DataType="String" Master="True" Description="应用键。对应 X-App-Key" />
+        <Column Name="AppSecret" DataType="String" Length="200" Description="应用密钥。对应 X-App-Secret，日志与后台脱敏" />
+        <Column Name="DeviceId" DataType="String" Description="绑定设备编号。与设备一对一" />
+        <Column Name="Enabled" DataType="Boolean" Description="启用" />
+        <Column Name="LastUsedAt" DataType="DateTime" Description="最后使用时间" />
+        <Column Name="Remark" DataType="String" Length="500" Description="备注" />
+        <Column Name="CreateTime" DataType="DateTime" Description="创建时间" Category="扩展" />
+        <Column Name="CreateIP" DataType="String" Description="创建地址" Category="扩展" />
+        <Column Name="UpdateTime" DataType="DateTime" Description="更新时间" Category="扩展" />
+        <Column Name="UpdateIP" DataType="String" Description="更新地址" Category="扩展" />
+      </Columns>
+      <Indexes>
+        <Index Columns="AppKey" Unique="True" />
+        <Index Columns="DeviceId" Unique="True" />
+      </Indexes>
+    </Table>
+    <Table Name="DeviceEventRaw" Description="原始上报报文">
+      <Columns>
+        <Column Name="Id" DataType="Int64" PrimaryKey="True" DataScale="time" Description="编号。时间缩放，便于按月分表" />
+        <Column Name="EventKey" DataType="String" Master="True" Length="64" Description="幂等键 SHA1(event|deviceId|timestamp)。分片内唯一" />
+        <Column Name="MessageId" DataType="String" Description="消息追踪 ID UUID。不参与去重" />
+        <Column Name="StreamId" DataType="String" Description="Redis Stream 消息 ID。消费时补记，用于定位与重放" />
+        <Column Name="Event" DataType="String" Description="事件类型" />
+        <Column Name="DeviceId" DataType="String" Description="设备编号" />
+        <Column Name="EventTimeRaw" DataType="String" Description="设备侧时间原始字符串。参与 EventKey" />
+        <Column Name="EventTime" DataType="DateTime" Description="设备侧时间 UTC" />
+        <Column Name="RawJson" DataType="String" Length="-1" Description="未经改写的原始报文全文" />
+        <Column Name="DataJson" DataType="String" Length="-1" Description="data 节点原文" />
+        <Column Name="ExtJson" DataType="String" Length="-1" Description="未识别字段 JSON" />
+        <Column Name="UnknownFields" DataType="String" Length="1000" Description="未识别字段名清单，逗号分隔" />
+        <Column Name="ParseVersion" DataType="String" Length="20" Description="解析版本。当前 1.0" />
+        <Column Name="ParseWarning" DataType="String" Length="200" Description="解析告警编码，见字段字典 §5" />
+        <Column Name="SourceIp" DataType="String" Description="来源 IP" />
+        <Column Name="ReceivedAt" DataType="DateTime" Description="服务端接收时间 UTC" />
+        <Column Name="PersistedAt" DataType="DateTime" Description="落库时间 UTC" />
+        <Column Name="ProcessStatus" DataType="Int32" Description="处理状态。0待处理 1已落库 2死信 3已重放" />
+        <Column Name="RepeatCount" DataType="Int32" Description="同一 EventKey 重复投递次数" />
+        <Column Name="ReplayOf" DataType="String" Description="重放来源 MessageId" />
+        <Column Name="HandleStatus" DataType="Int32" Description="人工处理状态。0未处理 1已确认 2已忽略" />
+        <Column Name="HandleRemark" DataType="String" Length="500" Description="人工处理备注" />
+        <Column Name="HandleBy" DataType="String" Description="人工处理人" />
+        <Column Name="HandleAt" DataType="DateTime" Description="人工处理时间" />
+        <Column Name="CreateTime" DataType="DateTime" Description="创建时间" Category="扩展" />
+      </Columns>
+      <Indexes>
+        <Index Columns="EventKey" Unique="True" />
+        <Index Columns="DeviceId,EventTime" />
+        <Index Columns="Event,ReceivedAt" />
+        <Index Columns="StreamId" />
+        <Index Columns="ProcessStatus,HandleStatus,ReceivedAt" />
+      </Indexes>
+    </Table>
+    <Table Name="ProductionRecord" Description="逐件完成明细">
+      <Columns>
+        <Column Name="Id" DataType="Int64" PrimaryKey="True" DataScale="time" Description="编号。时间缩放，便于按月分表" />
+        <Column Name="EventKey" DataType="String" Master="True" Length="64" Description="幂等键。分片内唯一" />
+        <Column Name="MessageId" DataType="String" Description="消息追踪 ID" />
+        <Column Name="OrderId" DataType="String" Description="工单号" />
+        <Column Name="BoxId" DataType="String" Description="盒型或盒号原值，不推断语义" />
+        <Column Name="DeviceId" DataType="String" Description="设备编号" />
+        <Column Name="IsPiece" DataType="Boolean" Description="是否逐件完成事件" />
+        <Column Name="PlanQty" DataType="Int32" Description="计划数量" />
+        <Column Name="CompletedQty" DataType="Int32" Description="累计完成数。按取大收敛" />
+        <Column Name="EventTime" DataType="DateTime" Description="设备侧事件时间 UTC" />
+        <Column Name="ExtJson" DataType="String" Length="-1" Description="扩展字段 JSON" />
+        <Column Name="ParseVersion" DataType="String" Length="20" Description="解析版本" />
+        <Column Name="CreateTime" DataType="DateTime" Description="创建时间" Category="扩展" />
+      </Columns>
+      <Indexes>
+        <Index Columns="EventKey" Unique="True" />
+        <Index Columns="OrderId,EventTime" />
+        <Index Columns="DeviceId,EventTime" />
+      </Indexes>
+    </Table>
+    <Table Name="WorkOrder" Description="工单">
+      <Columns>
+        <Column Name="Id" DataType="Int64" Identity="True" PrimaryKey="True" Description="编号" />
+        <Column Name="OrderId" DataType="String" Master="True" Description="工单号" />
+        <Column Name="BoxId" DataType="String" Description="盒型或盒号原值" />
+        <Column Name="DeviceId" DataType="String" Description="设备编号" />
+        <Column Name="PlanQty" DataType="Int32" Description="计划数量" />
+        <Column Name="CompletedQty" DataType="Int32" Description="累计完成数。禁止旧值覆盖新值" />
+        <Column Name="Status" DataType="String" Description="派生状态。进行中/已完成" />
+        <Column Name="StartedAt" DataType="DateTime" Description="开工时间 UTC" />
+        <Column Name="LastReportAt" DataType="DateTime" Description="最后上报时间 UTC" />
+        <Column Name="CompletedAt" DataType="DateTime" Description="派生完成时间 UTC" />
+        <Column Name="ExtJson" DataType="String" Length="-1" Description="扩展字段 JSON" />
+        <Column Name="ParseVersion" DataType="String" Length="20" Description="解析版本" />
+        <Column Name="CreateTime" DataType="DateTime" Description="创建时间" Category="扩展" />
+        <Column Name="UpdateTime" DataType="DateTime" Description="更新时间" Category="扩展" />
+      </Columns>
+      <Indexes>
+        <Index Columns="OrderId" Unique="True" />
+        <Index Columns="DeviceId,StartedAt" />
+        <Index Columns="Status" />
+      </Indexes>
+    </Table>
+    <Table Name="DeviceStatusLog" Description="设备状态流水">
+      <Columns>
+        <Column Name="Id" DataType="Int64" Identity="True" PrimaryKey="True" Description="编号" />
+        <Column Name="EventKey" DataType="String" Length="64" Description="幂等键" />
+        <Column Name="MessageId" DataType="String" Description="消息追踪 ID" />
+        <Column Name="DeviceId" DataType="String" Description="设备编号" />
+        <Column Name="StatusRaw" DataType="String" Description="状态原值" />
+        <Column Name="EventTime" DataType="DateTime" Description="设备侧事件时间 UTC" />
+        <Column Name="ExtJson" DataType="String" Length="-1" Description="扩展字段 JSON" />
+        <Column Name="ParseVersion" DataType="String" Length="20" Description="解析版本" />
+        <Column Name="CreateTime" DataType="DateTime" Description="创建时间" Category="扩展" />
+      </Columns>
+      <Indexes>
+        <Index Columns="EventKey" />
+        <Index Columns="DeviceId,EventTime" />
+      </Indexes>
+    </Table>
+    <Table Name="FaultRecord" Description="故障记录">
+      <Columns>
+        <Column Name="Id" DataType="Int64" Identity="True" PrimaryKey="True" Description="编号" />
+        <Column Name="EventKey" DataType="String" Length="64" Description="发生事件幂等键" />
+        <Column Name="DeviceId" DataType="String" Description="设备编号" />
+        <Column Name="Message" DataType="String" Length="2000" Description="故障信息" />
+        <Column Name="OccurredAt" DataType="DateTime" Description="发生时间 UTC" />
+        <Column Name="ClearedAt" DataType="DateTime" Description="清除时间 UTC" />
+        <Column Name="ClearEventKey" DataType="String" Length="64" Description="清除事件幂等键" />
+        <Column Name="Status" DataType="Int32" Description="0未清除 1已清除 2手动关闭" />
+        <Column Name="ExtJson" DataType="String" Length="-1" Description="扩展字段 JSON" />
+        <Column Name="ParseVersion" DataType="String" Length="20" Description="解析版本" />
+        <Column Name="CreateTime" DataType="DateTime" Description="创建时间" Category="扩展" />
+        <Column Name="UpdateTime" DataType="DateTime" Description="更新时间" Category="扩展" />
+      </Columns>
+      <Indexes>
+        <Index Columns="DeviceId,OccurredAt" />
+        <Index Columns="Status" />
+        <Index Columns="EventKey" />
+      </Indexes>
+    </Table>
+    <Table Name="DeadLetter" Description="死信消息">
+      <Columns>
+        <Column Name="Id" DataType="Int64" Identity="True" PrimaryKey="True" Description="编号" />
+        <Column Name="MessageId" DataType="String" Master="True" Description="消息追踪 ID" />
+        <Column Name="StreamId" DataType="String" Description="Redis Stream 消息 ID" />
+        <Column Name="EventKey" DataType="String" Length="64" Description="幂等键" />
+        <Column Name="RawJson" DataType="String" Length="-1" Description="原始消息体" />
+        <Column Name="RetryCount" DataType="Int32" Description="累计重试次数" />
+        <Column Name="LastError" DataType="String" Length="2000" Description="最后一次错误" />
+        <Column Name="ReplayStatus" DataType="Int32" Description="0待处理 1已重放 2已忽略" />
+        <Column Name="ReplayAt" DataType="DateTime" Description="重放时间" />
+        <Column Name="ReplayBy" DataType="String" Description="重放操作人" />
+        <Column Name="CreateTime" DataType="DateTime" Description="创建时间" Category="扩展" />
+      </Columns>
+      <Indexes>
+        <Index Columns="MessageId" />
+        <Index Columns="ReplayStatus,CreateTime" />
+      </Indexes>
+    </Table>
+    <Table Name="LocalQueueFallback" Description="本地兜底队列">
+      <Columns>
+        <Column Name="Id" DataType="Int64" Identity="True" PrimaryKey="True" Description="编号" />
+        <Column Name="MessageId" DataType="String" Master="True" Description="消息追踪 ID" />
+        <Column Name="EventKey" DataType="String" Length="64" Description="幂等键" />
+        <Column Name="RawJson" DataType="String" Length="-1" Description="原始消息体" />
+        <Column Name="RequeuedAt" DataType="DateTime" Description="回灌入流时间" />
+        <Column Name="RetryCount" DataType="Int32" Description="回灌尝试次数" />
+        <Column Name="CreateTime" DataType="DateTime" Description="创建时间" Category="扩展" />
+      </Columns>
+      <Indexes>
+        <Index Columns="MessageId" />
+        <Index Columns="RequeuedAt" />
+      </Indexes>
+    </Table>
+    <Table Name="StatusDict" Description="状态字典">
+      <Columns>
+        <Column Name="Id" DataType="Int32" Identity="True" PrimaryKey="True" Description="编号" />
+        <Column Name="StatusCode" DataType="String" Master="True" Description="状态原值" />
+        <Column Name="DisplayName" DataType="String" Description="中文显示名" />
+        <Column Name="Enabled" DataType="Boolean" Description="启用" />
+        <Column Name="Sort" DataType="Int32" Description="排序" />
+        <Column Name="Remark" DataType="String" Length="500" Description="备注" />
+        <Column Name="CreateTime" DataType="DateTime" Description="创建时间" Category="扩展" />
+        <Column Name="UpdateTime" DataType="DateTime" Description="更新时间" Category="扩展" />
+      </Columns>
+      <Indexes>
+        <Index Columns="StatusCode" Unique="True" />
+      </Indexes>
+    </Table>
+  </Tables>
+</EntityModel>

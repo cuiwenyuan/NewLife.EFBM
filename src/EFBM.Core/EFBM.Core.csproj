@@ -1,0 +1,8 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <AssemblyTitle>EFBM 契约层</AssemblyTitle>
+    <Description>事件常量、报文与 Stream 契约、字段字典、幂等键与抽象接口；不依赖 ASP.NET Core 与数据库</Description>
+  </PropertyGroup>
+
+</Project>

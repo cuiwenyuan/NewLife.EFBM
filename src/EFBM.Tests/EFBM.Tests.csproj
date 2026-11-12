@@ -1,0 +1,29 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <AssemblyTitle>EFBM 测试</AssemblyTitle>
+    <Description>契约、字段字典、幂等键、数据模型与工程骨架的单元测试；集成测试（SQLite / Stream）按 P1~P6 补充</Description>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <NoWarn>$(NoWarn);CS0414;CS1591</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" Version="6.0.4" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+  </ItemGroup>
+
+  <!-- 标准程序集引用：测试运行的是真实的 EFBM.Core.dll / EFBM.Data.dll，而非源码重编译 -->
+  <ItemGroup>
+    <ProjectReference Include="..\EFBM.Core\EFBM.Core.csproj" />
+    <ProjectReference Include="..\EFBM.Data\EFBM.Data.csproj" />
+    <ProjectReference Include="..\EFBM.Web\EFBM.Web.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,1548 @@
+﻿<style>
+    table {
+        border-collapse: collapse;
+        border: 1px solid;
+        border-color: rgb(211, 202, 221);
+    }
+
+    table thead,
+    table tr {
+        border-top-width: 1px;
+        border-top-style: solid;
+        border-top-color: rgb(211, 202, 221);
+    }
+
+    table {
+        border-bottom-width: 1px;
+        border-bottom-style: solid;
+        border-bottom-color: rgb(211, 202, 221);
+    }
+
+    table td,
+    table th {
+        padding: 5px 10px;
+        font-size: 14px;
+        font-family: Verdana;
+        color: rgb(95, 74, 121);
+    }
+
+    table tr:nth-child(even) {
+        background: rgb(223, 216, 232)
+    }
+
+    table tr:nth-child(odd) {
+        background: #FFF
+    }
+</style>
+<h3>设备（Device）</h3>
+<table>
+    <thead>
+        <tr>
+            <th>名称</th>
+            <th>显示名</th>
+            <th>类型</th>
+            <th>长度</th>
+            <th>精度</th>
+            <th>主键</th>
+            <th>允许空</th>
+            <th>备注</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>Id</td>
+            <td>编号</td>
+            <td>Int64</td>
+            <td></td>
+            <td></td>
+            <td title="自增">AI</td>
+            <td>N</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>DeviceId</td>
+            <td>设备编号</td>
+            <td>String</td>
+            <td>50</td>
+            <td></td>
+            <td title="唯一索引">UQ</td>
+            <td></td>
+            <td>与报文 deviceId 一致</td>
+        </tr>
+
+        <tr>
+            <td>Name</td>
+            <td>设备名称</td>
+            <td>String</td>
+            <td>50</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>StatusRaw</td>
+            <td>当前状态原值</td>
+            <td>String</td>
+            <td>50</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>不做枚举校验</td>
+        </tr>
+
+        <tr>
+            <td>LastReportTime</td>
+            <td>最后上报时间UTC</td>
+            <td>DateTime</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>最后上报时间 UTC</td>
+        </tr>
+
+        <tr>
+            <td>Enabled</td>
+            <td>启用</td>
+            <td>Boolean</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>N</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>ExtJson</td>
+            <td>扩展字段JSON</td>
+            <td>String</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>扩展字段 JSON。新增字段固化前的载体</td>
+        </tr>
+
+        <tr>
+            <td>Remark</td>
+            <td>备注</td>
+            <td>String</td>
+            <td>500</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>CreateTime</td>
+            <td>创建时间</td>
+            <td>DateTime</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>CreateIP</td>
+            <td>创建地址</td>
+            <td>String</td>
+            <td>50</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>UpdateTime</td>
+            <td>更新时间</td>
+            <td>DateTime</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>UpdateIP</td>
+            <td>更新地址</td>
+            <td>String</td>
+            <td>50</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+    </tbody>
+</table>
+<br></br>
+<h3>设备凭据（AppCredential）</h3>
+<table>
+    <thead>
+        <tr>
+            <th>名称</th>
+            <th>显示名</th>
+            <th>类型</th>
+            <th>长度</th>
+            <th>精度</th>
+            <th>主键</th>
+            <th>允许空</th>
+            <th>备注</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>Id</td>
+            <td>编号</td>
+            <td>Int64</td>
+            <td></td>
+            <td></td>
+            <td title="自增">AI</td>
+            <td>N</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>AppKey</td>
+            <td>应用键</td>
+            <td>String</td>
+            <td>50</td>
+            <td></td>
+            <td title="唯一索引">UQ</td>
+            <td></td>
+            <td>对应 X-App-Key</td>
+        </tr>
+
+        <tr>
+            <td>AppSecret</td>
+            <td>应用密钥</td>
+            <td>String</td>
+            <td>200</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>对应 X-App-Secret，日志与后台脱敏</td>
+        </tr>
+
+        <tr>
+            <td>DeviceId</td>
+            <td>绑定设备编号</td>
+            <td>String</td>
+            <td>50</td>
+            <td></td>
+            <td title="唯一索引">UQ</td>
+            <td></td>
+            <td>与设备一对一</td>
+        </tr>
+
+        <tr>
+            <td>Enabled</td>
+            <td>启用</td>
+            <td>Boolean</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>N</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>LastUsedAt</td>
+            <td>最后使用时间</td>
+            <td>DateTime</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>Remark</td>
+            <td>备注</td>
+            <td>String</td>
+            <td>500</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>CreateTime</td>
+            <td>创建时间</td>
+            <td>DateTime</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>CreateIP</td>
+            <td>创建地址</td>
+            <td>String</td>
+            <td>50</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>UpdateTime</td>
+            <td>更新时间</td>
+            <td>DateTime</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>UpdateIP</td>
+            <td>更新地址</td>
+            <td>String</td>
+            <td>50</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+    </tbody>
+</table>
+<br></br>
+<h3>原始上报报文（DeviceEventRaw）</h3>
+<table>
+    <thead>
+        <tr>
+            <th>名称</th>
+            <th>显示名</th>
+            <th>类型</th>
+            <th>长度</th>
+            <th>精度</th>
+            <th>主键</th>
+            <th>允许空</th>
+            <th>备注</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>Id</td>
+            <td>编号</td>
+            <td>Int64</td>
+            <td></td>
+            <td></td>
+            <td title="主键">PK</td>
+            <td>N</td>
+            <td>时间缩放，便于按月分表</td>
+        </tr>
+
+        <tr>
+            <td>EventKey</td>
+            <td>幂等键SHA1(event|deviceId|timestamp)</td>
+            <td>String</td>
+            <td>64</td>
+            <td></td>
+            <td title="唯一索引">UQ</td>
+            <td></td>
+            <td>幂等键 SHA1(event|deviceId|timestamp)。分片内唯一</td>
+        </tr>
+
+        <tr>
+            <td>MessageId</td>
+            <td>消息追踪IDUUID</td>
+            <td>String</td>
+            <td>50</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>消息追踪 ID UUID。不参与去重</td>
+        </tr>
+
+        <tr>
+            <td>StreamId</td>
+            <td>RedisStream消息ID</td>
+            <td>String</td>
+            <td>50</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>Redis Stream 消息 ID。消费时补记，用于定位与重放</td>
+        </tr>
+
+        <tr>
+            <td>Event</td>
+            <td>事件类型</td>
+            <td>String</td>
+            <td>50</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>DeviceId</td>
+            <td>设备编号</td>
+            <td>String</td>
+            <td>50</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>EventTimeRaw</td>
+            <td>设备侧时间原始字符串</td>
+            <td>String</td>
+            <td>50</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>参与 EventKey</td>
+        </tr>
+
+        <tr>
+            <td>EventTime</td>
+            <td>设备侧时间UTC</td>
+            <td>DateTime</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>设备侧时间 UTC</td>
+        </tr>
+
+        <tr>
+            <td>RawJson</td>
+            <td>未经改写的原始报文全文</td>
+            <td>String</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>DataJson</td>
+            <td>data节点原文</td>
+            <td>String</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>data 节点原文</td>
+        </tr>
+
+        <tr>
+            <td>ExtJson</td>
+            <td>未识别字段JSON</td>
+            <td>String</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>未识别字段 JSON</td>
+        </tr>
+
+        <tr>
+            <td>UnknownFields</td>
+            <td>未识别字段名清单</td>
+            <td>String</td>
+            <td>1000</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>逗号分隔</td>
+        </tr>
+
+        <tr>
+            <td>ParseVersion</td>
+            <td>解析版本</td>
+            <td>String</td>
+            <td>20</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>当前 1.0</td>
+        </tr>
+
+        <tr>
+            <td>ParseWarning</td>
+            <td>解析告警编码</td>
+            <td>String</td>
+            <td>200</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>见字段字典 §5</td>
+        </tr>
+
+        <tr>
+            <td>SourceIp</td>
+            <td>来源IP</td>
+            <td>String</td>
+            <td>50</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>来源 IP</td>
+        </tr>
+
+        <tr>
+            <td>ReceivedAt</td>
+            <td>服务端接收时间UTC</td>
+            <td>DateTime</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>服务端接收时间 UTC</td>
+        </tr>
+
+        <tr>
+            <td>PersistedAt</td>
+            <td>落库时间UTC</td>
+            <td>DateTime</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>落库时间 UTC</td>
+        </tr>
+
+        <tr>
+            <td>ProcessStatus</td>
+            <td>处理状态</td>
+            <td>Int32</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>N</td>
+            <td>0待处理 1已落库 2死信 3已重放</td>
+        </tr>
+
+        <tr>
+            <td>RepeatCount</td>
+            <td>同一EventKey重复投递次数</td>
+            <td>Int32</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>N</td>
+            <td>同一 EventKey 重复投递次数</td>
+        </tr>
+
+        <tr>
+            <td>ReplayOf</td>
+            <td>重放来源MessageId</td>
+            <td>String</td>
+            <td>50</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>重放来源 MessageId</td>
+        </tr>
+
+        <tr>
+            <td>HandleStatus</td>
+            <td>人工处理状态</td>
+            <td>Int32</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>N</td>
+            <td>0未处理 1已确认 2已忽略</td>
+        </tr>
+
+        <tr>
+            <td>HandleRemark</td>
+            <td>人工处理备注</td>
+            <td>String</td>
+            <td>500</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>HandleBy</td>
+            <td>人工处理人</td>
+            <td>String</td>
+            <td>50</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>HandleAt</td>
+            <td>人工处理时间</td>
+            <td>DateTime</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>CreateTime</td>
+            <td>创建时间</td>
+            <td>DateTime</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+    </tbody>
+</table>
+<br></br>
+<h3>逐件完成明细（ProductionRecord）</h3>
+<table>
+    <thead>
+        <tr>
+            <th>名称</th>
+            <th>显示名</th>
+            <th>类型</th>
+            <th>长度</th>
+            <th>精度</th>
+            <th>主键</th>
+            <th>允许空</th>
+            <th>备注</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>Id</td>
+            <td>编号</td>
+            <td>Int64</td>
+            <td></td>
+            <td></td>
+            <td title="主键">PK</td>
+            <td>N</td>
+            <td>时间缩放，便于按月分表</td>
+        </tr>
+
+        <tr>
+            <td>EventKey</td>
+            <td>幂等键</td>
+            <td>String</td>
+            <td>64</td>
+            <td></td>
+            <td title="唯一索引">UQ</td>
+            <td></td>
+            <td>分片内唯一</td>
+        </tr>
+
+        <tr>
+            <td>MessageId</td>
+            <td>消息追踪ID</td>
+            <td>String</td>
+            <td>50</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>消息追踪 ID</td>
+        </tr>
+
+        <tr>
+            <td>OrderId</td>
+            <td>工单号</td>
+            <td>String</td>
+            <td>50</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>BoxId</td>
+            <td>盒型或盒号原值</td>
+            <td>String</td>
+            <td>50</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>不推断语义</td>
+        </tr>
+
+        <tr>
+            <td>DeviceId</td>
+            <td>设备编号</td>
+            <td>String</td>
+            <td>50</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>IsPiece</td>
+            <td>是否逐件完成事件</td>
+            <td>Boolean</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>N</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>PlanQty</td>
+            <td>计划数量</td>
+            <td>Int32</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>N</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>CompletedQty</td>
+            <td>累计完成数</td>
+            <td>Int32</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>N</td>
+            <td>按取大收敛</td>
+        </tr>
+
+        <tr>
+            <td>EventTime</td>
+            <td>设备侧事件时间UTC</td>
+            <td>DateTime</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>设备侧事件时间 UTC</td>
+        </tr>
+
+        <tr>
+            <td>ExtJson</td>
+            <td>扩展字段JSON</td>
+            <td>String</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>扩展字段 JSON</td>
+        </tr>
+
+        <tr>
+            <td>ParseVersion</td>
+            <td>解析版本</td>
+            <td>String</td>
+            <td>20</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>CreateTime</td>
+            <td>创建时间</td>
+            <td>DateTime</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+    </tbody>
+</table>
+<br></br>
+<h3>工单（WorkOrder）</h3>
+<table>
+    <thead>
+        <tr>
+            <th>名称</th>
+            <th>显示名</th>
+            <th>类型</th>
+            <th>长度</th>
+            <th>精度</th>
+            <th>主键</th>
+            <th>允许空</th>
+            <th>备注</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>Id</td>
+            <td>编号</td>
+            <td>Int64</td>
+            <td></td>
+            <td></td>
+            <td title="自增">AI</td>
+            <td>N</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>OrderId</td>
+            <td>工单号</td>
+            <td>String</td>
+            <td>50</td>
+            <td></td>
+            <td title="唯一索引">UQ</td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>BoxId</td>
+            <td>盒型或盒号原值</td>
+            <td>String</td>
+            <td>50</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>DeviceId</td>
+            <td>设备编号</td>
+            <td>String</td>
+            <td>50</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>PlanQty</td>
+            <td>计划数量</td>
+            <td>Int32</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>N</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>CompletedQty</td>
+            <td>累计完成数</td>
+            <td>Int32</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>N</td>
+            <td>禁止旧值覆盖新值</td>
+        </tr>
+
+        <tr>
+            <td>Status</td>
+            <td>派生状态</td>
+            <td>String</td>
+            <td>50</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>进行中/已完成</td>
+        </tr>
+
+        <tr>
+            <td>StartedAt</td>
+            <td>开工时间UTC</td>
+            <td>DateTime</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>开工时间 UTC</td>
+        </tr>
+
+        <tr>
+            <td>LastReportAt</td>
+            <td>最后上报时间UTC</td>
+            <td>DateTime</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>最后上报时间 UTC</td>
+        </tr>
+
+        <tr>
+            <td>CompletedAt</td>
+            <td>派生完成时间UTC</td>
+            <td>DateTime</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>派生完成时间 UTC</td>
+        </tr>
+
+        <tr>
+            <td>ExtJson</td>
+            <td>扩展字段JSON</td>
+            <td>String</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>扩展字段 JSON</td>
+        </tr>
+
+        <tr>
+            <td>ParseVersion</td>
+            <td>解析版本</td>
+            <td>String</td>
+            <td>20</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>CreateTime</td>
+            <td>创建时间</td>
+            <td>DateTime</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>UpdateTime</td>
+            <td>更新时间</td>
+            <td>DateTime</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+    </tbody>
+</table>
+<br></br>
+<h3>设备状态流水（DeviceStatusLog）</h3>
+<table>
+    <thead>
+        <tr>
+            <th>名称</th>
+            <th>显示名</th>
+            <th>类型</th>
+            <th>长度</th>
+            <th>精度</th>
+            <th>主键</th>
+            <th>允许空</th>
+            <th>备注</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>Id</td>
+            <td>编号</td>
+            <td>Int64</td>
+            <td></td>
+            <td></td>
+            <td title="自增">AI</td>
+            <td>N</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>EventKey</td>
+            <td>幂等键</td>
+            <td>String</td>
+            <td>64</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>MessageId</td>
+            <td>消息追踪ID</td>
+            <td>String</td>
+            <td>50</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>消息追踪 ID</td>
+        </tr>
+
+        <tr>
+            <td>DeviceId</td>
+            <td>设备编号</td>
+            <td>String</td>
+            <td>50</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>StatusRaw</td>
+            <td>状态原值</td>
+            <td>String</td>
+            <td>50</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>EventTime</td>
+            <td>设备侧事件时间UTC</td>
+            <td>DateTime</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>设备侧事件时间 UTC</td>
+        </tr>
+
+        <tr>
+            <td>ExtJson</td>
+            <td>扩展字段JSON</td>
+            <td>String</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>扩展字段 JSON</td>
+        </tr>
+
+        <tr>
+            <td>ParseVersion</td>
+            <td>解析版本</td>
+            <td>String</td>
+            <td>20</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>CreateTime</td>
+            <td>创建时间</td>
+            <td>DateTime</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+    </tbody>
+</table>
+<br></br>
+<h3>故障记录（FaultRecord）</h3>
+<table>
+    <thead>
+        <tr>
+            <th>名称</th>
+            <th>显示名</th>
+            <th>类型</th>
+            <th>长度</th>
+            <th>精度</th>
+            <th>主键</th>
+            <th>允许空</th>
+            <th>备注</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>Id</td>
+            <td>编号</td>
+            <td>Int64</td>
+            <td></td>
+            <td></td>
+            <td title="自增">AI</td>
+            <td>N</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>EventKey</td>
+            <td>发生事件幂等键</td>
+            <td>String</td>
+            <td>64</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>DeviceId</td>
+            <td>设备编号</td>
+            <td>String</td>
+            <td>50</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>Message</td>
+            <td>故障信息</td>
+            <td>String</td>
+            <td>2000</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>OccurredAt</td>
+            <td>发生时间UTC</td>
+            <td>DateTime</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>发生时间 UTC</td>
+        </tr>
+
+        <tr>
+            <td>ClearedAt</td>
+            <td>清除时间UTC</td>
+            <td>DateTime</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>清除时间 UTC</td>
+        </tr>
+
+        <tr>
+            <td>ClearEventKey</td>
+            <td>清除事件幂等键</td>
+            <td>String</td>
+            <td>64</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>Status</td>
+            <td>0未清除1已清除2手动关闭</td>
+            <td>Int32</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>N</td>
+            <td>0未清除 1已清除 2手动关闭</td>
+        </tr>
+
+        <tr>
+            <td>ExtJson</td>
+            <td>扩展字段JSON</td>
+            <td>String</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>扩展字段 JSON</td>
+        </tr>
+
+        <tr>
+            <td>ParseVersion</td>
+            <td>解析版本</td>
+            <td>String</td>
+            <td>20</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>CreateTime</td>
+            <td>创建时间</td>
+            <td>DateTime</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>UpdateTime</td>
+            <td>更新时间</td>
+            <td>DateTime</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+    </tbody>
+</table>
+<br></br>
+<h3>死信消息（DeadLetter）</h3>
+<table>
+    <thead>
+        <tr>
+            <th>名称</th>
+            <th>显示名</th>
+            <th>类型</th>
+            <th>长度</th>
+            <th>精度</th>
+            <th>主键</th>
+            <th>允许空</th>
+            <th>备注</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>Id</td>
+            <td>编号</td>
+            <td>Int64</td>
+            <td></td>
+            <td></td>
+            <td title="自增">AI</td>
+            <td>N</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>MessageId</td>
+            <td>消息追踪ID</td>
+            <td>String</td>
+            <td>50</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>消息追踪 ID</td>
+        </tr>
+
+        <tr>
+            <td>StreamId</td>
+            <td>RedisStream消息ID</td>
+            <td>String</td>
+            <td>50</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>Redis Stream 消息 ID</td>
+        </tr>
+
+        <tr>
+            <td>EventKey</td>
+            <td>幂等键</td>
+            <td>String</td>
+            <td>64</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>RawJson</td>
+            <td>原始消息体</td>
+            <td>String</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>RetryCount</td>
+            <td>累计重试次数</td>
+            <td>Int32</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>N</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>LastError</td>
+            <td>最后一次错误</td>
+            <td>String</td>
+            <td>2000</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>ReplayStatus</td>
+            <td>0待处理1已重放2已忽略</td>
+            <td>Int32</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>N</td>
+            <td>0待处理 1已重放 2已忽略</td>
+        </tr>
+
+        <tr>
+            <td>ReplayAt</td>
+            <td>重放时间</td>
+            <td>DateTime</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>ReplayBy</td>
+            <td>重放操作人</td>
+            <td>String</td>
+            <td>50</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>CreateTime</td>
+            <td>创建时间</td>
+            <td>DateTime</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+    </tbody>
+</table>
+<br></br>
+<h3>本地兜底队列（LocalQueueFallback）</h3>
+<table>
+    <thead>
+        <tr>
+            <th>名称</th>
+            <th>显示名</th>
+            <th>类型</th>
+            <th>长度</th>
+            <th>精度</th>
+            <th>主键</th>
+            <th>允许空</th>
+            <th>备注</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>Id</td>
+            <td>编号</td>
+            <td>Int64</td>
+            <td></td>
+            <td></td>
+            <td title="自增">AI</td>
+            <td>N</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>MessageId</td>
+            <td>消息追踪ID</td>
+            <td>String</td>
+            <td>50</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>消息追踪 ID</td>
+        </tr>
+
+        <tr>
+            <td>EventKey</td>
+            <td>幂等键</td>
+            <td>String</td>
+            <td>64</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>RawJson</td>
+            <td>原始消息体</td>
+            <td>String</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>RequeuedAt</td>
+            <td>回灌入流时间</td>
+            <td>DateTime</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>RetryCount</td>
+            <td>回灌尝试次数</td>
+            <td>Int32</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>N</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>CreateTime</td>
+            <td>创建时间</td>
+            <td>DateTime</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+    </tbody>
+</table>
+<br></br>
+<h3>状态字典（StatusDict）</h3>
+<table>
+    <thead>
+        <tr>
+            <th>名称</th>
+            <th>显示名</th>
+            <th>类型</th>
+            <th>长度</th>
+            <th>精度</th>
+            <th>主键</th>
+            <th>允许空</th>
+            <th>备注</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>Id</td>
+            <td>编号</td>
+            <td>Int32</td>
+            <td></td>
+            <td></td>
+            <td title="自增">AI</td>
+            <td>N</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>StatusCode</td>
+            <td>状态原值</td>
+            <td>String</td>
+            <td>50</td>
+            <td></td>
+            <td title="唯一索引">UQ</td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>DisplayName</td>
+            <td>中文显示名</td>
+            <td>String</td>
+            <td>50</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>Enabled</td>
+            <td>启用</td>
+            <td>Boolean</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>N</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>Sort</td>
+            <td>排序</td>
+            <td>Int32</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>N</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>Remark</td>
+            <td>备注</td>
+            <td>String</td>
+            <td>500</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>CreateTime</td>
+            <td>创建时间</td>
+            <td>DateTime</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>UpdateTime</td>
+            <td>更新时间</td>
+            <td>DateTime</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+    </tbody>
+</table>
+<br></br>

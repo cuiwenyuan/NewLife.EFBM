@@ -1,0 +1,35 @@
+# .NET 生成物
+bin/
+obj/
+Bin/
+publish/
+TestResults/
+*.user
+*.suo
+.vs/
+.vscode/
+*.nupkg
+coverage*.xml
+
+# 请求日志（按天滚动，运行时产物）
+logs/
+
+# NewLife 运行时生成的目录（不要忽略 src/EFBM.Web/Config/XCode.config，它是入库的运行时配置）
+Data/
+Log/
+LogWeb/
+Backup/
+Avatars/
+Uploads/
+src/EFBM.Data/Config/
+
+# 本地密钥与覆盖配置
+appsettings.Local.json
+*.pfx
+.env
+
+# SQLite 运行时数据库（凭据 / 兜底表，不入库）
+*.db
+
+# WorkBuddy 项目辅助目录（会话记忆与个人助手数据）
+.workbuddy/

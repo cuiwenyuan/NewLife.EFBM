@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <AssemblyTitle>EFBM 上报 API 与管理后台</AssemblyTitle>
+    <Description>电动折盒机主动上报的纯接收端：NewLife.Cube 宿主、RedisStream 共享流、XCode 持久化</Description>
+    <UserSecretsId>efbm-web</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="NewLife.Core" Version="11.11.2026.201" />
+    <PackageReference Include="NewLife.Cube.Core" Version="6.9.2026.201" />
+    <PackageReference Include="NewLife.Redis" Version="6.4.2026.201" />
+    <PackageReference Include="NewLife.Redis.Extensions" Version="6.4.2026.201" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\EFBM.Core\EFBM.Core.csproj" />
+    <ProjectReference Include="..\EFBM.Data\EFBM.Data.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 运行时 XCode 配置：Migration=On、ShowSQL=false，必须随发布物一起输出 -->
+    <None Include="Config\XCode.config" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,130 @@
+ 17.主动上报 
+
+ 
+这些可配置上报的REST API地址，验证尽量简单，匿名或Basic 或AppSecret这种。 
+
+Host, port配置。POST  
+
+17.1 工单完成 
+
+{ 
+
+  "event": "ORDER_COMPLETED", 
+
+  "deviceId": "FBOX-A01", 
+
+  "timestamp": "2026-07-23T18:00:00+08:00", 
+
+  "data": { 
+
+    "orderId": "WO-20260723-001", 
+
+    "boxId": "BOX-0001", 
+
+    "planQty": 1000, 
+
+    "completedQty": 1000 
+
+  } 
+
+} 
+
+每完成一件都上报一次 
+
+17.2 设备状态切换 
+
+**status 枚举**： `IDLE`(空闲) / `RUNNING`(运行) / `PAUSED`(暂停) / `FAULT`(故障) / 
+
+{ 
+
+  "event": "DEVICE_STATUS_CHANGED", 
+
+  "deviceId": "FBOX-A01", 
+
+  "timestamp": "2026-07-23T18:00:00+08:00", 
+
+  "data": { 
+
+    "status": "", 
+
+  } 
+
+} 
+
+ 
+
+17.3 工单开始生产 
+
+{ 
+
+  "event": "ORDER_STARTED", 
+
+  "deviceId": "FBOX-A01", 
+
+  "timestamp": "2026-07-23T18:00:00+08:00", 
+
+  "data": { 
+
+    "orderId": "WO-20260723-001", 
+
+    "boxId": "BOX-0001" 
+
+  } 
+
+} 
+
+ 
+
+17.4 产量达到里程碑 （⚠️ 阈值待确认，如每 10%/每 100 件）{ 
+
+  "event": "ORDER_PROGRESS", 
+
+  "deviceId": "FBOX-A01", 
+
+  "timestamp": "2026-07-23T18:00:00+08:00", 
+
+  "data": { 
+
+    "orderId": "WO-20260723-001", 
+
+    "boxId": "BOX-0001", 
+
+    "planQty": 1000, 
+
+    "completedQty": 1000 
+
+  } 
+
+}
+17.5 报错上报
+{ 
+
+  "event": "FAULT_OCCURRED", 
+
+  "deviceId": "FBOX-A01", 
+
+  "timestamp": "2026-07-23T18:00:00+08:00", 
+
+  "data": { 
+
+    "message": "报错信息" 
+
+  } 
+
+} 
+
+ 
+
+17.6 故障清除 
+
+{ 
+
+  "event": "FAULT_CLEARED", 
+
+  "deviceId": "FBOX-A01", 
+
+  "timestamp": "2026-07-23T18:00:00+08:00" 
+
+} 
+
+ 

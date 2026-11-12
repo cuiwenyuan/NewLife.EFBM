@@ -1,0 +1,17 @@
+<Project>
+
+  <!-- 全部工程统一目标框架与语言级别；各 csproj 不再重复声明 TargetFramework -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <!-- XCode 生成的实体使用 String / Int32 等非可空写法，统一关闭可空上下文 -->
+    <Nullable>disable</Nullable>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <Deterministic>false</Deterministic>
+    <VersionPrefix>0.1</VersionPrefix>
+    <Authors>EFBM</Authors>
+    <Company>EFBM</Company>
+  </PropertyGroup>
+
+</Project>
