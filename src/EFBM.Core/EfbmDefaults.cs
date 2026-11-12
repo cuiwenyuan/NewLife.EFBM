@@ -55,6 +55,9 @@ public static class EfbmDefaults
     /// <summary>单次上报请求体上限（字节）；仅防异常大包，正常报文远小于该值。</summary>
     public const Int32 MaxBodyBytes = 4 * 1024 * 1024;
 
+    /// <summary>消费者单条消息的默认重试上限；超过后先写死信表再确认。</summary>
+    public const Int32 ConsumerMaxRetry = 5;
+
     /// <summary>请求日志默认目录（相对宿主内容根目录）。</summary>
     public const String RequestLogDirectory = "logs/api";
 

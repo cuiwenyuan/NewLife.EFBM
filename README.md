@@ -21,9 +21,9 @@
 
 ## 当前状态
 
-**P0 契约已冻结，P1 工程骨架与 P2 接收链路已交付。** 4 个工程（`EFBM.Web` / `EFBM.Data` / `EFBM.Core` / `EFBM.Tests`）统一 `net10.0`；`Model.xml` 十张实体由 `xcode` 生成；契约层、字段字典、`EventKeyBuilder`、`RedisEventQueue`（惰性接入）、内外网配置与启动自检已落地；**P2 已实现单端点 `POST /api/events`、三模式按设备鉴权、`JsonDocument` 严格解析 + 宽容字段、一次 `XADD` 即 200、Redis 故障本地兜底与回灌**。字段字典按示例当前版本冻结为 `ParseVersion=1.0`；架构设计 D-11 已决议为 4 工程。`EFBM.Tests` 使用标准 `ProjectReference`（测试运行的是真实 DLL）；`dotnet build` 0 警告 0 错误，`dotnet test` 165 项通过。
+**P0 契约已冻结，P1 工程骨架与 P2 接收链路已交付。** 4 个工程（`EFBM.Web` / `EFBM.Data` / `EFBM.Core` / `EFBM.Tests`）统一 `net10.0`；`Model.xml` 十张实体由 `xcode` 生成；契约层、字段字典、`EventKeyBuilder`、`RedisEventQueue`（惰性接入）、内外网配置与启动自检已落地；**P2 已实现单端点 `POST /api/events`、三模式按设备鉴权、`JsonDocument` 严格解析 + 宽容字段、一次 `XADD` 即 200、Redis 故障本地兜底与回灌**。字段字典按示例当前版本冻结为 `ParseVersion=1.0`；架构设计 D-11 已决议为 4 工程。`EFBM.Tests` 使用标准 `ProjectReference`（测试运行的是真实 DLL）；`dotnet build` 0 警告 0 错误，`dotnet test` 184 项通过。**P3 消费者与全量落库已完成**：Redis 模式下 `PersistConsumerService` 异步把 Stream 消息落 `DeviceEventRaw` / `WorkOrder` / `ProductionRecord` / `DeviceStatusLog` / `FaultRecord`，`EventKey` 幂等、死信不自动丢弃；纯日志模式无消费者，靠 `--replay` 把历史日志补录进库。
 
-**尚未实现**：消费者落库、Cube 后台页面、安全裁剪、部署联调（P3~P6）。当前系统**已可接收上报并把原文写入文本日志（或共享流），但返回 200 的数据尚未落业务表，不可上线**；真实 Redis ≥ 6.2 / MySQL 环境下的运行时验收与 P99 压测也待补。功能完成状态以 [Doc/功能清单.md](Doc/功能清单.md) 为唯一持久状态源，请勿据文档进度判断系统可用。
+**尚未实现**：Cube 后台页面（P4）、安全裁剪（顺延 P4）、部署联调（P5~P6）。P3 消费者落库已完成——Redis 模式下返回 200 的数据真正入库，纯日志模式可 `--replay` 补录；但**后台 / 安全裁剪 / 压测未做，仍未到生产上线标准**。真实 Redis ≥ 6.2 / MySQL 环境下的运行时验收与 P99 压测仍待补。功能完成状态以 [Doc/功能清单.md](Doc/功能清单.md) 为唯一持久状态源，请勿据文档进度判断系统可用。
 
 ### Beta 最小版本（当前可交付）
 
@@ -56,7 +56,7 @@ tail -n 1 src/EFBM.Web/logs/api/api-$(date +%Y%m%d).log
 | 开发计划 | [开发计划.md](开发计划.md) | HOW 与阶段：§0 开工准备、工程结构、P0~P6、实现要点、风险、交付物、18 条验收用例 |
 | 部署文档 | [部署文档.md](部署文档.md) | Linux 原生 / 宝塔 / Windows IIS 三条路径、配置清单、验证清单、升级回滚、故障速查 |
 | Beta 运行手册 | [Doc/Beta运行手册.md](Doc/Beta运行手册.md) | 最小版本范围、Redis 准备、启动与凭据引导、`/health` 与冒烟验收、故障排查、已知限制 |
-| 架构设计 | [Doc/架构设计.md](Doc/架构设计.md) | 分层与组件所在工程、核心流程时序、契约与不变量、23 条设计决策（D-11 决议 4 工程、D-15~D-19 为 P2 决策、D-20~D-21 为 Beta 决策、D-22~D-23 为文本日志决策）、扩展点、收口记录 |
+| 架构设计 | [Doc/架构设计.md](Doc/架构设计.md) | 分层与组件所在工程、核心流程时序、契约与不变量、27 条设计决策（D-11 决议 4 工程、D-15~D-19 为 P2 决策、D-20~D-21 为 Beta 决策、D-22~D-23 为文本日志决策、D-24~D-27 为 P3 消费落库决策）、扩展点、收口记录 |
 | 功能清单 | [Doc/功能清单.md](Doc/功能清单.md) | 拆分决策表、130 个功能点的实现 / 测试 / 注释三维状态、统计与待修复项 |
 | 上报字段字典 | [Doc/上报字段字典.md](Doc/上报字段字典.md) | 当前版本冻结（`ParseVersion=1.0`）：信封 / `data` 字段矩阵、接收端生成字段、状态字典、`ParseWarning`、演进流程 |
 | 竞品分析 | [Doc/竞品分析.md](Doc/竞品分析.md) | 内部系统降级说明 + 可选技术路径对比（WHY NOT）与功能遴选结果 |
@@ -73,7 +73,7 @@ tail -n 1 src/EFBM.Web/logs/api/api-$(date +%Y%m%d).log
 
 - **项目类型**：`net10.0` / ASP.NET Core 后端 + NewLife.Cube 管理后台（含内嵌后台消费者），无独立前端工程。
 - **编译命令**：`dotnet build EFBM.sln`（解决方案根目录，包含 4 个工程；当前 0 警告 0 错误）。
-- **测试命令**：`dotnet test EFBM.sln`（xUnit，当前 165 项通过，全部带中文 `DisplayName`；集成测试用 XCode + SQLite，双数据库矩阵与故障注入按开发计划 §7）。
+- **测试命令**：`dotnet test EFBM.sln`（xUnit，当前 184 项通过，全部带中文 `DisplayName`；集成测试用 XCode + SQLite，P3 消费落库集成测试覆盖幂等 / 死信 / 全量留存，双数据库矩阵与故障注入按开发计划 §7）。
 - **核心工程**（4 个，按架构设计 D-11 决议收敛；Queue / Services / Consumers 是 `EFBM.Web` 内的目录分层）：
 
 | 工程 | 职责 |
@@ -164,6 +164,6 @@ dotnet publish src/EFBM.Web/EFBM.Web.csproj -c Release -o ./publish/efbm
 2. ✅ **P1 骨架已完成**：`net10.0` 4 工程、`Model.xml` 十张实体与生成实体、契约层 / 字段字典 / 内外网配置 / 启动自检、`RedisEventQueue` 惰性接入。
 3. ✅ **P2 接收链路已完成**：单端点 `POST /api/events`、三模式按设备鉴权、`JsonDocument` 严格解析 + `data` JSON 树承载、`MessageId` / `EventKey` 生成、一次 `XADD` 即 200、Redis 故障本地兜底与回灌、双失败 503。
 4. ✅ **Beta 最小版本已就绪**：SQLite 开箱自动建表、配置驱动凭据引导、`/health` 队列可观测、一键冒烟脚本；验收标准是「200 且 `redis.streamLength` 增长」，消费入库不在本版范围。
-5. **下一步 P3**：`IHostedService` 落库组消费者、批量取 + 显式 `XACK`、PEL AutoClaim、事件 handler 注册表、逐件明细全量落库、死信与安全裁剪；之后按《开发计划.md》P4 Cube 后台 → P5 运维部署 → P6 联调压测。
+5. ✅ **P3 消费者与全量落库已完成**：`PersistConsumerService`（`IHostedService`）常驻消费、批量取 + 显式 `XACK`、进程内重试计数 + 超限死信、`EventHandlerRegistry` + 7 个 handler、逐件明细全量落库、`EventKey` 幂等 + `RepeatCount`、设备自动登记；纯日志模式补录由 `--replay` 承担，安全裁剪顺延 P4。之后按《开发计划.md》P4 Cube 后台 → P5 运维部署 → P6 联调压测。
 6. 需在具备 **Redis ≥ 6.2 与 MySQL** 的环境补做完整运行时验收（多组广播 / 组内分摊 / PEL 重投 / 裁剪安全性 / P99）；本机已用 SQLite + 便携版 Redis 验证「接收 → 入流」与「降级 → 回灌」，MySQL 与 6.2 专属命令仍待目标环境补跑。
 7. 状态随进度同步回 [Doc/功能清单.md](Doc/功能清单.md)。

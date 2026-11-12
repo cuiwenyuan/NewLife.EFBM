@@ -12,7 +12,9 @@ namespace EFBM.Tests;
 /// 这些用例会真实创建 SQLite 文件并让 XCode 自动建表，因此能证明
 /// ① <c>XCode.SQLite</c> 原生库在本机可加载；② <c>Migration=On</c> 能自动建表；
 /// ③ 生成的实体在本机可读写。<b>不验证</b> MySQL 方言，双库矩阵仍按开发计划 §7 在目标环境补跑。
+/// 与 <see cref="PersistPipelineTests"/> 同属 sqlite collection：真实库测试类串行执行，避免连接串互抢。
 /// </remarks>
+[Collection("sqlite")]
 public sealed class SqliteSmokeTests : IDisposable
 {
     private readonly String _dbFile;

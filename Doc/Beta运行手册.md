@@ -1,7 +1,7 @@
 # EFBM Beta 运行手册
 
 > 目标：**先让设备真的能上报进来，并且每一条报文都在服务器上留下原文。**
-> 本版默认「纯文本日志」模式，**不需要 Redis 就能收数据**；Redis 共享流作为可选增强，消费入库（P3）与后台页面（P4）不在本版范围内。
+> 本版默认「纯文本日志」模式，**不需要 Redis 就能收数据**；Redis 共享流作为可选增强。消费入库（P3）与回放补录工具已完成，后台页面（P4）另行安排。
 
 ---
 
@@ -17,8 +17,8 @@
 | Redis 故障时本地兜底 | ✅ | 开启 Redis 且连不上时写 SQLite 表 `LocalQueueFallback`，恢复后每 30 秒回灌 |
 | 健康检查 `/health` | ✅ | 直接回答「日志写了多少条、有没有写失败、Redis 通不通、兜底积压多少」 |
 | Beta 凭据引导 | ✅ | 配置驱动自动建一台设备 + 一套凭据，后台发放页面未上线也能联调 |
-| 消费入库 | ❌ | 还没有消费者把 Stream 写进业务表（P3） |
-| Cube 后台页面 / 安全裁剪 / 监控告警 | ❌ | P4 / P5 |
+| 消费入库（P3 已完成） | ✅ | 开启 Redis 后，常驻消费者 `PersistConsumerService` 把 Stream 消息落进 `DeviceEventRaw` / `WorkOrder` / `ProductionRecord` / `DeviceStatusLog` / `FaultRecord` 等业务表，重复投递幂等（只 1 行 + `RepeatCount`）；`/health` 的 `consumer` 段可见 `taken/persisted/duplicates/deadLettered` |
+| 日志回放补录 `--replay` | ✅ | 纯日志模式没有消费者，用 `dotnet EFBM.Web.dll --replay <日志文件或目录>` 把历史日志补录进库，幂等由 `EventKey` 兜住，可重复跑 |
 
 ### 1.1 一次请求的三种落点
 
@@ -28,7 +28,7 @@
 | --- | --- | --- | --- |
 | `accepted` | `true` | Redis Stream `efbm:events` | 等 P3 消费者落库 |
 | `accepted-by-fallback` | `false` | SQLite `LocalQueueFallback` 表 | Redis 恢复后自动回灌 |
-| `accepted-by-log` | `false` | **文本日志**（默认模式即此） | P3 上线前靠人工补录；P3 会提供回放工具 |
+| `accepted-by-log` | `false` | **文本日志**（默认模式即此） | 用 `dotnet EFBM.Web.dll --replay <日志>` 补录进库（见 §4.4） |
 
 队列、兜底、日志**三者全部写失败**才返回 503 —— 这种情况说明磁盘也写不进去了，必须立即处理。
 
@@ -234,7 +234,37 @@ Invoke-RestMethod http://127.0.0.1:5000/health | ConvertTo-Json -Depth 5
 - `RedisEnabled=true` 且 `redis.connected=false` → 上报仍 200，走兜底表，`status=degraded`。
 - `RedisEnabled=false` → `redis.connected=false` 属正常，**不是故障**。
 
-### 4.4 一键冒烟
+### 4.4 日志回放补录（--replay）
+
+纯日志模式（默认）没有常驻消费者，历史日志不会自动进业务表；Redis 模式下若某条报文「只进了日志没进流」也漏在库外。两者都用 `--replay` 把日志补录进库：
+
+```bash
+# 补录单个日志文件
+dotnet EFBM.Web.dll --replay logs/api/api-20261112.log
+
+# 补录整个目录（按文件名排序、逐文件逐行回放）
+dotnet EFBM.Web.dll --replay logs/api
+```
+
+要点：
+
+- **只回放成功的**：逐行解析 JSON，只处理 `status=200` 的行；`400/401/403` 等被拒行本就不该落业务表，直接跳过。`raw` 字段缺失或 JSON 非法的行也跳过，结尾统一汇总。
+- **幂等兜住**：回放走与 Redis 消费者完全相同的 `EventPersistService`，以 `EventKey = SHA1(event|deviceId|timestamp)` 去重。同一份日志重复跑、断点续跑、多份日志交叉，都只产生一条原始报文（`RepeatCount` 累加），不会重复落明细。
+- **与 Redis 模式无关**：`--replay` 只依赖 SQLite/MySQL 业务库与日志文件，**不连 Redis**；即便 `RedisEnabled=true`，也能把「只进日志没进流」的报文补进库。
+- **SQLite 路径坑（必读）**：`Data Source=EFBM.db` 的相对路径解析到 **DLL 所在目录**（`bin/Debug/net10.0/EFBM.db` 或发布目录），不是进程工作目录。在 `logs/` 旁直接跑 `--replay` 会新建一份空库，看着像「回放没写数据」。`Program.cs` 已显式 `DAL.AddConnStr` 登记 `EFBM`/`Membership` 连接串，确保在任意工作目录都命中同一份库文件。若回放后查不到数据，先 `cd` 到 DLL 目录或确认连接串指向的业务库路径。
+- **输出**：结尾打印各业务表的写入 / 跳过计数与耗时；失败行单独列数，不改库。
+
+回放后核验（与 Redis 模式落库结果一致）：
+
+```bash
+sqlite3 bin/Debug/net10.0/EFBM.db \
+  "SELECT (SELECT COUNT(*) FROM DeviceEventRaw) AS raw,
+          (SELECT COUNT(*) FROM WorkOrder) AS wo,
+          (SELECT COUNT(*) FROM ProductionRecord) AS pr,
+          (SELECT COUNT(*) FROM FaultRecord) AS fault;"
+```
+
+### 4.5 一键冒烟
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File tools/beta-smoke.ps1 -Count 5
@@ -242,7 +272,7 @@ powershell -ExecutionPolicy Bypass -File tools/beta-smoke.ps1 -Count 5
 
 脚本逐条打印 `HTTP 码 / message / queued / logged`，最后汇总 `requestLog.written` 与落点分布；任一请求非 200 则退出码非 0。
 
-### 4.5 启用 Redis 时确认消息真的在流里
+### 4.6 启用 Redis 时确认消息真的在流里
 
 ```bash
 redis-cli -n 5 XLEN efbm:events          # 条数，应随上报增长
@@ -345,9 +375,9 @@ jq -r 'select(.status==200) | .raw' logs/api/api-20261112.log > replay.jsonl
 
 ## 8. 已知限制与下一步
 
-1. **日志不是数据库**：查询只能 `grep` / `jq`，没有后台页面，也没有自动回放。P3 落库后日志退化为审计与补录源。
+1. **日志不是数据库**：查询只能 `grep` / `jq`，没有后台页面（P4）。P3 落库后日志已退化为**审计与补录源**——`--replay`（§4.4）可把历史日志补进业务表。
 2. **纯日志模式不写兜底表**：避免同一份数据在 SQLite 里无限堆积；切到 Redis 模式后新请求才会进兜底表。
-3. **没有消费者**：启用 Redis 时消息只进 Stream，`efbm-persist` 组的 lag 会持续等于总条数。
+3. **纯日志模式无消费者**：默认 `RedisEnabled=false` 时数据只进文本日志，靠 `--replay` 补录；启用 Redis 后 `PersistConsumerService` 常驻消费落库。
 4. **没有安全裁剪**：Stream 只增不减，Beta 数据量小可接受；正式上线前必须落 P4 的按组最小已确认 ID 裁剪。
 5. **未做压测**：P99 与吞吐需在目标环境用真实设备节拍验证（单件 > 1 秒，压力不大）；`FlushToDisk=true` 每条约 1ms，属于可接受成本。
-6. 下一步按《开发计划.md》：**P3 消费者与全量落库**（含日志回放工具）→ P4 后台与裁剪 → P5 部署监控 → P6 联调压测。
+6. 下一步按《开发计划.md》：P3 消费者与全量落库（含日志回放工具）**已完成** → P4 后台与裁剪 → P5 部署监控 → P6 联调压测。

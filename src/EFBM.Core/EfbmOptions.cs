@@ -65,6 +65,12 @@ public class EfbmOptions
     /// <summary>设备凭据进程内缓存秒数；0 表示不缓存（每次查库）。</summary>
     public Int32 CredentialCacheSeconds { get; set; } = EfbmDefaults.CredentialCacheSeconds;
 
+    /// <summary>消费者单条消息的进程内重试上限；超过后先写死信表再确认（FR-12，绝不自动丢弃）。</summary>
+    public Int32 ConsumerMaxRetry { get; set; } = EfbmDefaults.ConsumerMaxRetry;
+
+    /// <summary>首次上报自动登记设备（FR-13）；关闭后未登记设备的事件仍正常落库，只是不建 Device 记录。</summary>
+    public Boolean DeviceAutoRegister { get; set; } = true;
+
     /// <summary>是否信任反向代理的 <c>X-Forwarded-For</c> / <c>X-Forwarded-Proto</c>。</summary>
     public Boolean TrustForwardedHeaders { get; set; } = true;
 
@@ -108,6 +114,10 @@ public class EfbmOptions
             throw new InvalidOperationException("兜底回灌的间隔与批量必须为正数");
         if (CredentialCacheSeconds < 0)
             throw new InvalidOperationException("凭据缓存秒数不得为负数");
+        if (ConsumerMaxRetry < 1)
+            throw new InvalidOperationException("消费重试上限至少为 1（EFBM:ConsumerMaxRetry>=1）");
+        if (BatchSize <= 0 || BatchIntervalMs <= 0)
+            throw new InvalidOperationException("消费者攒批条数与间隔必须为正数");
 
         Beta ??= new BetaOptions();
         Beta.ValidateOrThrow(IsInternet());
