@@ -21,7 +21,7 @@ namespace EFBM.Web.Queue;
 /// 本地兜底写入后的回灌由 P2 的 <c>FallbackRequeueService</c> 负责。
 /// 本类只负责写入、读取与确认，不自动裁剪、不自动丢弃。
 /// </remarks>
-public sealed class RedisEventQueue : IEventQueue, IEventQueueProbe, IStreamTrimmer, IDisposable
+public sealed class RedisEventQueue : IEventQueue, IEventQueueProbe, IQueueMetricsProbe, IStreamTrimmer, IDisposable
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -33,7 +33,13 @@ public sealed class RedisEventQueue : IEventQueue, IEventQueueProbe, IStreamTrim
     private readonly FullRedis _redis;
     private readonly RedisStream<String> _stream;
     private readonly Object _sync = new();
+    private readonly Object _metricSync = new();
     private volatile Boolean _groupReady;
+
+    // 写入速率靠两次采样差值算，状态只留在进程内：监控页刷新间隔通常 10 秒，够用且不占存储
+    private Int64 _lastLength;
+    private DateTime _lastSampledAt;
+    private TrimSnapshot _lastTrim;
 
     /// <summary>构造 Stream 接入对象；<b>不发起网络 IO</b>，首次读写时才连接 Redis 并建组。</summary>
     /// <param name="options">EFBM 配置节。</param>
@@ -151,12 +157,158 @@ public sealed class RedisEventQueue : IEventQueue, IEventQueueProbe, IStreamTrim
         }
     }
 
+    /// <summary>读取各组 lag / PEL / 消费者 / 裁剪水位的完整快照，供后台「消费组监控」页使用。</summary>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>指标快照；Redis 不可用时返回带错误摘要的快照，不抛异常。</returns>
+    /// <remarks>
+    /// 全部走 <c>XINFO</c> / <c>XPENDING</c> 只读命令，不建组、不确认、不改任何状态。
+    /// lag 用「从 last-delivered-id 起采样的条数」估算，触顶时标记为下限（见 <see cref="QueueMetricsAnalyzer"/>）。
+    /// </remarks>
+    public Task<QueueMetrics> GetMetricsAsync(CancellationToken cancellationToken = default)
+    {
+        if (!_options.RedisEnabled)
+            return Task.FromResult(QueueMetrics.Unavailable("Redis 未启用（EFBM:RedisEnabled=false），没有可监控的消费组", _options.StreamKey, false));
+
+        var sampledAt = DateTime.Now;
+
+        try
+        {
+            var info = _stream.GetInfo();
+            var groups = _stream.GetGroups() ?? [];
+
+            var list = new List<QueueGroupMetric>(groups.Length);
+            foreach (var group in groups)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (group == null || String.IsNullOrEmpty(group.Name)) continue;
+
+                var consumers = _stream.GetConsumers(group.Name) ?? [];
+                var pending = _stream.GetPending(group.Name);
+                var (lag, capped) = CountLag(group.LastDeliveredId);
+
+                list.Add(new QueueGroupMetric
+                {
+                    Name = group.Name,
+                    Consumers = group.Consumers,
+                    ActiveConsumers = consumers.Count(e => e.Idle < QueueMetricsAnalyzer.ZombieIdleSeconds),
+                    Pending = group.Pending,
+                    PendingMinId = pending?.StartId,
+                    MaxConsumerIdleSeconds = consumers.Length == 0 ? null : consumers.Max(e => (Int64)e.Idle),
+                    LastDeliveredId = group.LastDeliveredId,
+                    Lag = lag,
+                    LagCapped = capped,
+                    IsPersistGroup = String.Equals(group.Name, _options.PersistGroup, StringComparison.Ordinal),
+                });
+            }
+
+            var metrics = new QueueMetrics
+            {
+                Enabled = true,
+                Connected = true,
+                StreamKey = _options.StreamKey,
+                PersistGroup = _options.PersistGroup,
+                Length = info?.Length ?? _stream.Count,
+                FirstId = info?.FirstId,
+                LastId = info?.LastId,
+                LastGenerated = info?.LastGenerated ?? DateTime.MinValue,
+                RedisVersion = _redis.Version?.ToString(),
+                UsedMemory = ReadMemory(),
+                PublishRate = TakeRate(sampledAt, info?.Length ?? _stream.Count),
+                SampledAt = sampledAt,
+                Trim = _lastTrim ?? new TrimSnapshot { Enabled = _options.SafeTrimEnabled, Message = "尚未执行" },
+                Groups = list,
+            };
+
+            return Task.FromResult(QueueMetricsAnalyzer.Annotate(metrics));
+        }
+        catch (Exception ex)
+        {
+            // 监控页本身要能在 Redis 故障时打开，否则运维连「哪里坏了」都看不到
+            return Task.FromResult(QueueMetrics.Unavailable($"{ex.GetType().Name}: {ex.Message}", _options.StreamKey));
+        }
+    }
+
+    /// <summary>统计某组从 <paramref name="lastDeliveredId"/> 之后还有多少条新消息。</summary>
+    /// <param name="lastDeliveredId">该组最后投递 ID；为空按 <c>0-0</c> 处理。</param>
+    /// <returns>积压条数与是否触顶（只给出下限）。</returns>
+    private (Int64 Lag, Boolean Capped) CountLag(String lastDeliveredId)
+    {
+        var start = String.IsNullOrEmpty(lastDeliveredId) ? StreamIds.Zero : lastDeliveredId;
+
+        // 多取一条用于判断是否触顶；Range 的起始 ID 是闭区间，所以按 ID 严格大于来计数
+        var messages = _stream.Range(start, "+", QueueMetricsAnalyzer.LagSampleLimit + 1);
+        if (messages == null || messages.Count == 0) return (0, false);
+
+        var count = 0;
+        foreach (var message in messages)
+        {
+            if (message != null && StreamIds.Compare(message.Id, start) > 0) count++;
+        }
+
+        return count > QueueMetricsAnalyzer.LagSampleLimit
+            ? (QueueMetricsAnalyzer.LagSampleLimit, true)
+            : (count, false);
+    }
+
+    /// <summary>读取 Redis 已用内存；取不到时返回 <c>null</c>，不影响其它指标。</summary>
+    private String ReadMemory()
+    {
+        try
+        {
+            var info = _redis.GetInfo(true);
+            return info != null && info.TryGetValue("used_memory_human", out var value) ? value : null;
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>用两次采样差值算写入速率，并更新采样点。</summary>
+    private Double? TakeRate(DateTime sampledAt, Int64 length)
+    {
+        lock (_metricSync)
+        {
+            var rate = _lastSampledAt == DateTime.MinValue ? null : QueueMetricsAnalyzer.Rate(_lastLength, _lastSampledAt, length, sampledAt);
+
+            _lastLength = length;
+            _lastSampledAt = sampledAt;
+
+            return rate;
+        }
+    }
+
+    /// <summary>记录本轮裁剪结果，供监控页展示裁剪水位。</summary>
+    private void RecordTrim(StreamTrimReport report)
+    {
+        _lastTrim = new TrimSnapshot
+        {
+            Enabled = _options.SafeTrimEnabled,
+            LastRun = DateTime.Now,
+            WatermarkId = report.Applied ? StreamIds.FromMilliseconds(report.EffectiveMs) : null,
+            Trimmed = report.TrimmedCount,
+            Message = report.Unsupported
+                ? $"Redis 不支持 XTRIM MINID：{report.ErrorMessage}"
+                : report.ErrorMessage ?? report.SkippedReason,
+        };
+    }
+
     /// <summary>按各组最小已确认 ID 安全裁剪共享流；不删除任何未确认消息。</summary>
     /// <remarks>
     /// <c>XTRIM MINID</c> 需要 Redis ≥ 6.2；低版本会在首次调用时抛错，本方法捕获后标记
     /// <see cref="StreamTrimReport.Unsupported"/>，由后台任务停止循环。算法细节见 <see cref="StreamTrimCalculator"/>。
     /// </remarks>
-    public Task<StreamTrimReport> TrimSafeAsync(CancellationToken cancellationToken = default)
+    public async Task<StreamTrimReport> TrimSafeAsync(CancellationToken cancellationToken = default)
+    {
+        var report = await TrimCoreAsync(cancellationToken).ConfigureAwait(false);
+
+        // 结果无论成败都留痕：监控页要能看到「水位停在哪、上次删了多少、为什么没删」
+        RecordTrim(report);
+        return report;
+    }
+
+    /// <summary>裁剪主体，不含留痕。</summary>
+    private Task<StreamTrimReport> TrimCoreAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         var report = new StreamTrimReport();

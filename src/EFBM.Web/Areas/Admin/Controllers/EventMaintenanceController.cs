@@ -20,7 +20,7 @@ namespace EFBM.Web.Areas.Admin.Controllers;
 [Menu(100, true, Icon = "fa-tools")]
 [DisplayName("数据维护")]
 [Description("重放报文 / 按范围补数 / 标记处理状态，以及凭证式导出与清理。")]
-public class EventMaintenanceController : ControllerBaseX
+public class EventMaintenanceController : EfbmAdminController
 {
     private readonly EventReplayService _replay;
     private readonly EventExportService _export;
@@ -33,9 +33,6 @@ public class EventMaintenanceController : ControllerBaseX
         _replay = replay;
         _export = export;
     }
-
-    /// <summary>操作人：优先取魔方当前登录用户，取不到时记 unknown。</summary>
-    private String OperatorName => ManageProvider.User?.Name is { Length: > 0 } name ? name : "unknown";
 
     /// <summary>维护页。</summary>
     /// <returns>页面视图。</returns>
@@ -169,16 +166,4 @@ public class EventMaintenanceController : ControllerBaseX
             ? Json(0, $"已删除 {result.DeletedCount} 条", result)
             : Json(409, result.Reason);
     }
-
-    /// <summary>检查二次确认头。</summary>
-    /// <param name="action">动作名。</param>
-    /// <returns>请求头 <c>X-Confirm</c> 与动作名一致时返回 <c>true</c>。</returns>
-    private Boolean Confirmed(String action)
-        => String.Equals(Request.Headers["X-Confirm"].ToString(), action, StringComparison.Ordinal);
-
-    /// <summary>确认头缺失时的提示。</summary>
-    /// <param name="actionName">动作的中文名。</param>
-    /// <returns>面向运维的提示。</returns>
-    private static String ConfirmHint(String actionName)
-        => $"缺少二次确认：请在请求头带上 X-Confirm: <动作名> 再执行{actionName}";
 }

@@ -2,7 +2,7 @@ using System.Xml.Linq;
 
 namespace EFBM.Tests;
 
-/// <summary>XCode 模型文件的结构测试：保证 10 张实体、连接名、唯一索引与扩展字段不被误删。</summary>
+/// <summary>XCode 模型文件的结构测试：保证 11 张实体、连接名、唯一索引与扩展字段不被误删。</summary>
 public class ModelXmlTests
 {
     private static readonly XNamespace Ns = "https://newlifex.com/Model202509.xsd";
@@ -19,16 +19,16 @@ public class ModelXmlTests
             .Where(e => String.Equals((String)e.Attribute("Unique"), "True", StringComparison.OrdinalIgnoreCase))
             .Select(e => (String)e.Attribute("Columns")).ToArray();
 
-    [Fact(DisplayName = "模型_恰含十张表")]
-    public void Model_HasExactlyTenTables()
+    [Fact(DisplayName = "模型_恰含十一张表")]
+    public void Model_HasExactlyElevenTables()
     {
         var names = Doc.Descendants(Ns + "Table").Select(e => (String)e.Attribute("Name")).ToArray();
 
-        Assert.Equal(10, names.Length);
+        Assert.Equal(11, names.Length);
         Assert.Equal(new[]
         {
             "Device", "AppCredential", "DeviceEventRaw", "ProductionRecord", "WorkOrder",
-            "DeviceStatusLog", "FaultRecord", "DeadLetter", "LocalQueueFallback", "StatusDict",
+            "DeviceStatusLog", "FaultRecord", "DeadLetter", "LocalQueueFallback", "StatusDict", "FieldDict",
         }, names);
     }
 

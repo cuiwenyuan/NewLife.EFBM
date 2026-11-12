@@ -248,5 +248,22 @@
         <Index Columns="StatusCode" Unique="True" />
       </Indexes>
     </Table>
+    <Table Name="FieldDict" Description="字段登记">
+      <Columns>
+        <Column Name="Id" DataType="Int32" Identity="True" PrimaryKey="True" Description="编号" />
+        <Column Name="Event" DataType="String" Master="True" Description="所属事件，空表示信封字段" />
+        <Column Name="FieldName" DataType="String" Description="字段名" />
+        <Column Name="DisplayName" DataType="String" Description="中文名" />
+        <Column Name="JsonType" DataType="String" Length="30" Description="JSON 类型" />
+        <Column Name="Solidified" DataType="Boolean" Description="是否已固化为正式列" />
+        <Column Name="Sample" DataType="String" Length="500" Description="样例值" />
+        <Column Name="Remark" DataType="String" Length="500" Description="备注" />
+        <Column Name="CreateTime" DataType="DateTime" Description="创建时间" Category="扩展" />
+        <Column Name="UpdateTime" DataType="DateTime" Description="更新时间" Category="扩展" />
+      </Columns>
+      <Indexes>
+        <Index Columns="Event,FieldName" Unique="True" />
+      </Indexes>
+    </Table>
   </Tables>
 </EntityModel>

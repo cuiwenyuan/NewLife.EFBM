@@ -1,0 +1,123 @@
+@model EFBM.Web.Services.PagedResult<EFBM.Data.Entities.FaultRecord>
+@using EFBM.Web.Services
+@{
+    // 与魔方自带的 _ViewStart 保持一致：布局随主题走，默认 ACE
+    var theme = NewLife.Cube.CubeSetting.Current.Theme;
+    if (String.IsNullOrEmpty(theme)) theme = "ACE";
+    Layout = "~/Views/" + theme + "/_Layout.cshtml";
+    ViewBag.Title = "故障处置";
+
+    var deviceId = ViewBag.DeviceId as String;
+    var current = Model?.Page ?? 1;
+    var totalPages = Model?.TotalPages ?? 0;
+    String PageUrl(Int32 page) => $"/Admin/FaultDisposal?deviceId={Uri.EscapeDataString(deviceId ?? "")}&page={page}";
+}
+
+<div class="card card-primary card-outline">
+    <div class="card-header">
+        <h3 class="card-title"><i class="fa fa-medkit"></i> 未关闭故障（共 @(Model?.Total ?? 0) 条）</h3>
+        <div class="card-tools">
+            <a class="btn btn-sm btn-default" href="/Admin/FaultRecord"><i class="fa fa-list"></i> 查看全部故障记录</a>
+        </div>
+    </div>
+    <div class="card-body">
+        <p class="text-muted mb-2">
+            这里只列 <code>Status=0</code>（未清除）的故障，按发生时间从早到晚排列。
+            <b>关闭只改状态与清除时间</b>，不改设备上报的故障信息；关闭原因必填并写入审计日志。
+        </p>
+
+        <form class="form-inline mb-3" method="get" action="/Admin/FaultDisposal">
+            <input class="form-control form-control-sm mr-2" name="deviceId" value="@deviceId" placeholder="设备编号，留空为全部" />
+            <button class="btn btn-sm btn-primary" type="submit"><i class="fa fa-search"></i> 查询</button>
+        </form>
+
+        <div class="table-responsive">
+            <table class="table table-bordered table-hover table-sm">
+                <thead>
+                    <tr>
+                        <th style="width:70px">编号</th>
+                        <th style="width:140px">设备</th>
+                        <th>故障信息</th>
+                        <th style="width:170px">发生时间</th>
+                        <th style="width:110px">已持续</th>
+                        <th style="width:120px">幂等键</th>
+                        <th style="width:150px">操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (Model == null || Model.Items.Count == 0)
+                    {
+                        <tr><td colspan="7" class="text-center text-muted">没有未关闭的故障</td></tr>
+                    }
+                    else
+                    {
+                        foreach (var item in Model.Items)
+                        {
+                            <tr id="row-@item.Id">
+                                <td>@item.Id</td>
+                                <td><a href="/Admin/DeviceEventRaw?deviceId=@Uri.EscapeDataString(item.DeviceId ?? "")">@item.DeviceId</a></td>
+                                <td class="text-break">@item.Message</td>
+                                <td>@(item.OccurredAt > DateTime.MinValue ? item.OccurredAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") : "—")</td>
+                                <td>@FaultDisposalService.DescribeDuration(item)</td>
+                                <td><small class="text-muted">@item.EventKey</small></td>
+                                <td>
+                                    <button class="btn btn-sm btn-warning" onclick="closeFault(@item.Id)">
+                                        <i class="fa fa-power-off"></i> 手动关闭
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        @if (totalPages > 1)
+        {
+            <nav>
+                <ul class="pagination pagination-sm mb-0">
+                    <li class="page-item @(current <= 1 ? "disabled" : "")"><a class="page-link" href="@PageUrl(current - 1)">上一页</a></li>
+                    <li class="page-item disabled"><span class="page-link">第 @current / @totalPages 页</span></li>
+                    <li class="page-item @(current >= totalPages ? "disabled" : "")"><a class="page-link" href="@PageUrl(current + 1)">下一页</a></li>
+                </ul>
+            </nav>
+        }
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header"><h3 class="card-title"><i class="fa fa-terminal"></i> 执行结果</h3></div>
+    <div class="card-body"><pre id="result" class="mb-0">（尚未执行）</pre></div>
+</div>
+
+<script>
+    function show(ok, text) {
+        const el = document.getElementById('result');
+        el.textContent = (ok ? '✅ ' : '❌ ') + text;
+        el.style.color = ok ? '#1e7e34' : '#bd2130';
+    }
+
+    async function closeFault(id) {
+        const remark = prompt(`手动关闭故障 #${id}\n请填写关闭原因，会写进审计日志：`);
+        if (remark === null) return;
+        if (!remark.trim()) { show(false, '关闭原因必填'); return; }
+        if (!confirm('确认关闭这条故障？设备侧之后自动恢复也不会再改回未清除状态。')) return;
+
+        const res = await fetch('/Admin/FaultDisposal/Close', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-Confirm': 'Close',
+            },
+            body: new URLSearchParams({ id, remark }),
+        });
+
+        const json = await res.json();
+        show(res.ok && json.code === 0, json.message);
+        if (json.code === 0) {
+            const row = document.getElementById('row-' + id);
+            if (row) row.remove();
+        }
+    }
+</script>

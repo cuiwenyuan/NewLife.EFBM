@@ -31,6 +31,9 @@ public class AdminAreaTests
         typeof(FaultRecordController),
         typeof(DeviceStatusLogController),
         typeof(EventMaintenanceController),
+        typeof(FaultDisposalController),
+        typeof(QueueMonitorController),
+        typeof(FieldEvolutionController),
     };
 
     [Theory(DisplayName = "后台控制器_都挂魔方区域与菜单特性")]
@@ -90,6 +93,43 @@ public class AdminAreaTests
         Assert.Equal(PermissionFlags.Delete, PermissionOf(type, nameof(EventMaintenanceController.Cleanup)));
     }
 
+    [Fact(DisplayName = "故障处置页_看要查看_关要修改")]
+    public void FaultDisposal_Permissions()
+    {
+        var type = typeof(FaultDisposalController);
+
+        Assert.Equal(PermissionFlags.Detail, PermissionOf(type, nameof(FaultDisposalController.Index)));
+        Assert.Equal(PermissionFlags.Update, PermissionOf(type, nameof(FaultDisposalController.Close)));
+    }
+
+    [Fact(DisplayName = "消费组监控页_页面与快照都只要查看")]
+    public void QueueMonitor_Permissions()
+    {
+        var type = typeof(QueueMonitorController);
+
+        Assert.Equal(PermissionFlags.Detail, PermissionOf(type, nameof(QueueMonitorController.Index)));
+        Assert.Equal(PermissionFlags.Detail, PermissionOf(type, nameof(QueueMonitorController.Snapshot)));
+    }
+
+    [Fact(DisplayName = "字段演进页_看要查看_补登要修改_删除要删除")]
+    public void FieldEvolution_Permissions()
+    {
+        var type = typeof(FieldEvolutionController);
+
+        Assert.Equal(PermissionFlags.Detail, PermissionOf(type, nameof(FieldEvolutionController.Index)));
+        Assert.Equal(PermissionFlags.Update, PermissionOf(type, nameof(FieldEvolutionController.Register)));
+        Assert.Equal(PermissionFlags.Delete, PermissionOf(type, nameof(FieldEvolutionController.Delete)));
+    }
+
+    [Fact(DisplayName = "自定义页面_都继承EFBM后台基类以复用确认与操作人")]
+    public void CustomPages_UseEfbmBase()
+    {
+        foreach (var type in new[] { typeof(EventMaintenanceController), typeof(FaultDisposalController), typeof(QueueMonitorController), typeof(FieldEvolutionController) })
+        {
+            Assert.True(typeof(EfbmAdminController).IsAssignableFrom(type), $"{type.Name} 应继承 EfbmAdminController");
+        }
+    }
+
     [Theory(DisplayName = "后台动作_没有漏标权限的公开方法")]
     [MemberData(nameof(Controllers))]
     public void Controller_NoUnannotatedPublicAction(Type type)
@@ -118,6 +158,19 @@ public class AdminAreaTests
         }
 
         Assert.DoesNotContain("Confirmed(", Slice(source, "public async Task<ActionResult> Mark("));
+    }
+
+    [Fact(DisplayName = "故障处置与字段演进_写操作也强制二次确认")]
+    public void DisposalAndEvolution_WriteActionsCheckConfirm()
+    {
+        var fault = File.ReadAllText(RepoPaths.Find("src/EFBM.Web/Areas/Admin/Controllers/FaultDisposalController.cs"));
+        Assert.Contains("Confirmed(", Slice(fault, "public async Task<ActionResult> Close("));
+
+        var field = File.ReadAllText(RepoPaths.Find("src/EFBM.Web/Areas/Admin/Controllers/FieldEvolutionController.cs"));
+        foreach (var action in new[] { "Register", "Delete" })
+        {
+            Assert.Contains("Confirmed(", Slice(field, $"public async Task<ActionResult> {action}("));
+        }
     }
 
     [Theory(DisplayName = "内置角色_权限串是魔方格式")]

@@ -38,6 +38,9 @@ public static class AdminRoleSeed
         "FaultRecord",
         "DeviceStatusLog",
         "EventMaintenance",
+        "FaultDisposal",
+        "QueueMonitor",
+        "FieldEvolution",
     ];
 
     /// <summary>补齐两个内置角色的授权；已存在则更新权限串。</summary>

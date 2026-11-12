@@ -1,0 +1,267 @@
+@model EFBM.Web.Services.FieldEvolutionSnapshot
+@using EFBM.Web.Services
+@{
+    // 与魔方自带的 _ViewStart 保持一致：布局随主题走，默认 ACE
+    var theme = NewLife.Cube.CubeSetting.Current.Theme;
+    if (String.IsNullOrEmpty(theme)) theme = "ACE";
+    Layout = "~/Views/" + theme + "/_Layout.cshtml";
+    ViewBag.Title = "字段演进";
+
+    var snapshot = Model ?? new FieldEvolutionSnapshot();
+    var unknown = snapshot.Candidates.Where(e => !e.Registered).ToList();
+    var registered = snapshot.Candidates.Where(e => e.Registered).ToList();
+    var types = ViewBag.JsonTypes as String[] ?? FieldEvolutionService.JsonTypes;
+
+    // 内联 onclick 里传值：单引号 / 换行必须转义，否则对方字段清单里带个引号就把页面脚本弄坏了
+    String Js(String value) => (value ?? String.Empty).Replace("\\", "\\\\").Replace("'", "\\'").Replace("\r", " ").Replace("\n", " ");
+}
+
+<div class="card card-primary card-outline">
+    <div class="card-header">
+        <h3 class="card-title"><i class="fa fa-sitemap"></i> 新增字段监测</h3>
+        <div class="card-tools">
+            <a class="btn btn-sm btn-default" href="/Admin/DeviceEventRaw"><i class="fa fa-file-alt"></i> 原始报文</a>
+            <a class="btn btn-sm btn-default" href="/Admin/FieldEvolution"><i class="fa fa-sync"></i> 重新扫描</a>
+        </div>
+    </div>
+    <div class="card-body">
+        <p class="text-muted">
+            扫描窗口内 <code>UnknownFields</code> 非空的原始报文，按「事件 + 字段」聚合。
+            统计窗口 <b>@snapshot.From.ToString("yyyy-MM-dd HH:mm") ~ @snapshot.To.ToString("yyyy-MM-dd HH:mm")</b>，
+            实际扫描 <b>@snapshot.ScannedRows</b> 条（上限 @snapshot.MaxRows）。
+            <b>登记不会自动建列</b>：需要查询 / 统计时仍要按《需求说明》§3.7 走「改 Model.xml → 重新生成 → 回溯回填」。
+        </p>
+
+        @if (snapshot.Truncated)
+        {
+            <div class="alert alert-warning py-2">
+                窗口内报文超过扫描上限，只统计了最近 @snapshot.MaxRows 条；「首次出现时间」是<b>窗口内</b>首次，不是历史首次。
+            </div>
+        }
+
+        <form class="form-inline mb-3" method="get" action="/Admin/FieldEvolution">
+            <label class="mr-1">统计天数</label>
+            <input class="form-control form-control-sm mr-3" style="width:90px" type="number" name="days" value="@(snapshot.From == default ? 7 : Math.Max(1, (Int32)(snapshot.To - snapshot.From).TotalDays))" />
+            <label class="mr-1">扫描上限</label>
+            <input class="form-control form-control-sm mr-3" style="width:110px" type="number" name="maxRows" value="@(snapshot.MaxRows == 0 ? 2000 : snapshot.MaxRows)" />
+            <button class="btn btn-sm btn-primary" type="submit"><i class="fa fa-search"></i> 重新统计</button>
+        </form>
+
+        <h5 class="mt-4"><i class="fa fa-exclamation-circle text-warning"></i> 未登记字段（@unknown.Count）</h5>
+        <div class="table-responsive">
+            <table class="table table-bordered table-hover table-sm">
+                <thead>
+                    <tr>
+                        <th style="width:190px">事件</th>
+                        <th style="width:150px">字段名</th>
+                        <th style="width:70px">次数</th>
+                        <th style="width:150px">窗口内首次</th>
+                        <th style="width:150px">最近出现</th>
+                        <th style="width:120px">推断类型</th>
+                        <th>样例值</th>
+                        <th style="width:130px">来源设备</th>
+                        <th style="width:90px">操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (unknown.Count == 0)
+                    {
+                        <tr><td colspan="9" class="text-center text-muted">窗口内没有出现未登记字段</td></tr>
+                    }
+                    else
+                    {
+                        foreach (var item in unknown)
+                        {
+                            <tr>
+                                <td>@FieldEvolutionService.DescribeEvent(item.Event)</td>
+                                <td><code>@item.FieldName</code></td>
+                                <td>@item.Count</td>
+                                <td>@item.FirstSeen.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                                <td>@item.LastSeen.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                                <td><span class="badge badge-secondary">@item.InferredType</span></td>
+                                <td class="text-break"><small>@(item.Sample?.Length > 120 ? item.Sample[..120] + "…" : item.Sample)</small></td>
+                                <td>
+                                    @if (item.SampleEventId > 0)
+                                    {
+                                        <a href="/Admin/DeviceEventRaw/Detail/@item.SampleEventId" title="查看样例报文">@item.SampleDeviceId</a>
+                                    }
+                                    else
+                                    {
+                                        @item.SampleDeviceId
+                                    }
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-primary"
+                                            onclick="fillForm(0, '@Js(item.Event)', '@Js(item.FieldName)', '@Js(item.FieldName)', '@Js(item.InferredType)', '@Js(item.Sample?.Length > 120 ? item.Sample[..120] : item.Sample)')">
+                                        登记
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-5">
+        <div class="card card-success card-outline">
+            <div class="card-header"><h3 class="card-title"><i class="fa fa-pen"></i> 登记 / 修改字段</h3></div>
+            <div class="card-body">
+                <p class="text-muted">中文名、类型、所属事件与「是否已固化」都会被后续版本与页面引用，请按对方字段清单填写。</p>
+                <input id="dict-id" type="hidden" value="0" />
+                <div class="form-group"><label>所属事件（留空表示信封字段）</label><input id="event-name" class="form-control" placeholder="例如 ORDER_COMPLETED" /></div>
+                <div class="form-group"><label>字段名</label><input id="field-name" class="form-control" placeholder="例如 boxType" /></div>
+                <div class="form-group"><label>中文名</label><input id="display-name" class="form-control" placeholder="例如 盒型" /></div>
+                <div class="form-group">
+                    <label>JSON 类型</label>
+                    <select id="json-type" class="form-control">
+                        @foreach (var type in types)
+                        {
+                            <option value="@type">@type</option>
+                        }
+                    </select>
+                </div>
+                <div class="form-check mb-2">
+                    <input id="solidified" type="checkbox" class="form-check-input" />
+                    <label class="form-check-label" for="solidified">已固化为正式列</label>
+                </div>
+                <div class="form-group"><label>备注</label><input id="remark" class="form-control" placeholder="例如：对方 2026-11-20 提供的清单新增" /></div>
+                <button class="btn btn-success" onclick="register()"><i class="fa fa-save"></i> 保存登记</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-7">
+        <div class="card card-info card-outline">
+            <div class="card-header"><h3 class="card-title"><i class="fa fa-book"></i> 已登记字段（代码字典 + 登记表）</h3></div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-bordered table-hover table-sm">
+                        <thead>
+                            <tr>
+                                <th style="width:170px">事件</th>
+                                <th style="width:130px">字段名</th>
+                                <th style="width:130px">中文名</th>
+                                <th style="width:120px">类型</th>
+                                <th style="width:90px">已固化</th>
+                                <th style="width:80px">来源</th>
+                                <th style="width:90px">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var entry in snapshot.Known.OrderBy(e => e.Event, StringComparer.Ordinal).ThenBy(e => e.FieldName, StringComparer.Ordinal))
+                            {
+                                <tr>
+                                    <td>@FieldEvolutionService.DescribeEvent(entry.Event)</td>
+                                    <td><code>@entry.FieldName</code></td>
+                                    <td>@entry.DisplayName</td>
+                                    <td><span class="badge badge-light">@entry.JsonType</span></td>
+                                    <td>@(entry.Solidified ? "✅" : "—")</td>
+                                    <td><span class="badge badge-primary">@entry.Source</span></td>
+                                    <td></td>
+                                </tr>
+                            }
+                            @foreach (var entry in snapshot.Registered)
+                            {
+                                <tr>
+                                    <td>@FieldEvolutionService.DescribeEvent(entry.Event)</td>
+                                    <td><code>@entry.FieldName</code></td>
+                                    <td>@entry.DisplayName</td>
+                                    <td><span class="badge badge-light">@entry.JsonType</span></td>
+                                    <td>@(entry.Solidified ? "✅" : "—")</td>
+                                    <td><span class="badge badge-success">@entry.Source</span></td>
+                                    <td>
+                                        <button class="btn btn-sm btn-outline-secondary"
+                                                onclick="fillForm(@entry.DictId, '@Js(entry.Event)', '@Js(entry.FieldName)', '@Js(entry.DisplayName)', '@Js(entry.JsonType)')">
+                                            修改
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-danger" onclick="remove(@entry.DictId)">删除</button>
+                                    </td>
+                                </tr>
+                            }
+                            @if (registered.Count > 0)
+                            {
+                                <tr class="table-light">
+                                    <td colspan="7" class="text-muted">
+                                        窗口内命中的已登记新字段：@String.Join("、", registered.Select(e => $"{FieldEvolutionService.DescribeEvent(e.Event)}.{e.FieldName}（{e.Count} 次）"))
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                <p class="text-muted mb-0">
+                    代码字典来自 <code>EventFieldRegistry</code>（随版本发布，改它要发版）；
+                    登记表 <code>FieldDict</code> 是现场补登，只做说明与标记，不参与解析。
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header"><h3 class="card-title"><i class="fa fa-terminal"></i> 执行结果</h3></div>
+    <div class="card-body"><pre id="result" class="mb-0">（尚未执行）</pre></div>
+</div>
+
+<script>
+    function show(ok, text) {
+        const el = document.getElementById('result');
+        el.textContent = (ok ? '✅ ' : '❌ ') + text;
+        el.style.color = ok ? '#1e7e34' : '#bd2130';
+    }
+
+    const val = id => document.getElementById(id).value;
+
+    function fillForm(id, eventName, fieldName, displayName, jsonType, sample) {
+        document.getElementById('dict-id').value = id || 0;
+        document.getElementById('event-name').value = eventName || '';
+        document.getElementById('field-name').value = fieldName || '';
+        document.getElementById('display-name').value = displayName || fieldName || '';
+        document.getElementById('json-type').value = jsonType || 'String';
+        document.getElementById('solidified').checked = false;
+        document.getElementById('remark').value = sample ? ('样例：' + sample) : '';
+        document.getElementById('field-name').focus();
+    }
+
+    async function call(action, body) {
+        const res = await fetch('/Admin/FieldEvolution/' + action, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-Confirm': action,
+            },
+            body: new URLSearchParams(body),
+        });
+        const json = await res.json();
+        show(res.ok && json.code === 0, json.message);
+        return json;
+    }
+
+    async function register() {
+        if (!confirm('确认登记这个字段？')) return;
+
+        const json = await call('Register', {
+            id: val('dict-id'),
+            eventName: val('event-name'),
+            fieldName: val('field-name'),
+            displayName: val('display-name'),
+            jsonType: val('json-type'),
+            solidified: document.getElementById('solidified').checked,
+            remark: val('remark'),
+        });
+
+        if (json.code === 0) location.reload();
+    }
+
+    async function remove(id) {
+        if (!confirm('删除这条字段登记？代码字典里的字段不受影响。')) return;
+
+        const json = await call('Delete', { id });
+        if (json.code === 0) location.reload();
+    }
+</script>

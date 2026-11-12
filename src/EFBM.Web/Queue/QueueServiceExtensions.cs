@@ -22,6 +22,9 @@ public static class QueueServiceExtensions
         services.AddSingleton<IStreamTrimmer>(sp => sp.GetRequiredService<RedisEventQueue>());
         services.AddHostedService<StreamTrimHostedService>();
 
+        // 消费组监控（P4）：同一实例实现 IQueueMetricsProbe，后台监控页只读 XINFO / XPENDING
+        services.AddSingleton<IQueueMetricsProbe>(sp => sp.GetRequiredService<RedisEventQueue>());
+
         return services;
     }
 }

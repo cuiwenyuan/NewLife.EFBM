@@ -1,0 +1,237 @@
+@model EFBM.Core.QueueMetrics
+@using EFBM.Core
+@{
+    // 与魔方自带的 _ViewStart 保持一致：布局随主题走，默认 ACE
+    var theme = NewLife.Cube.CubeSetting.Current.Theme;
+    if (String.IsNullOrEmpty(theme)) theme = "ACE";
+    Layout = "~/Views/" + theme + "/_Layout.cshtml";
+    ViewBag.Title = "消费组监控";
+
+    var metrics = Model ?? QueueMetrics.Unavailable("没有取到指标", "");
+
+    // 取不到指标时 Trim 是默认快照，这里再兜一层：监控页在任何情况下都不能因为空引用变成 500
+    var trim = metrics.Trim ?? new EFBM.Core.TrimSnapshot();
+}
+
+<div class="row">
+    <div class="col-lg-3 col-6">
+        <div class="small-box @(metrics.Connected ? "bg-info" : "bg-danger")">
+            <div class="inner">
+                <h3>@(metrics.Connected ? "已连接" : "不可用")</h3>
+                <p>Redis @(String.IsNullOrEmpty(metrics.RedisVersion) ? "版本未知" : metrics.RedisVersion) · 内存 @(metrics.UsedMemory ?? "—")</p>
+            </div>
+            <div class="icon"><i class="fa fa-plug"></i></div>
+        </div>
+    </div>
+    <div class="col-lg-3 col-6">
+        <div class="small-box bg-primary">
+            <div class="inner">
+                <h3 id="stat-length">@metrics.Length</h3>
+                <p>Stream 长度 @(metrics.StreamKey)</p>
+            </div>
+            <div class="icon"><i class="fa fa-stream"></i></div>
+        </div>
+    </div>
+    <div class="col-lg-3 col-6">
+        <div class="small-box bg-success">
+            <div class="inner">
+                <h3 id="stat-rate">@(metrics.PublishRate?.ToString("F2") ?? "—")</h3>
+                <p>写入速率（条/秒，两次采样差值）</p>
+            </div>
+            <div class="icon"><i class="fa fa-bolt"></i></div>
+        </div>
+    </div>
+    <div class="col-lg-3 col-6">
+        <div class="small-box @(metrics.HasZombie ? "bg-danger" : "bg-warning")">
+            <div class="inner">
+                <h3 id="stat-lag">@metrics.TotalLag</h3>
+                <p>积压合计 · 未确认 <span id="stat-pending">@metrics.TotalPending</span></p>
+            </div>
+            <div class="icon"><i class="fa fa-layer-group"></i></div>
+        </div>
+    </div>
+</div>
+
+@if (!metrics.Connected)
+{
+    <div class="alert alert-danger">
+        <h5><i class="fa fa-ban"></i> 取不到队列指标</h5>
+        <p class="mb-0">@metrics.Error</p>
+        <p class="mb-0 mt-2 text-muted">纯日志模式（<code>EFBM:RedisEnabled=false</code>）下没有共享流，本页没有可监控的对象；这是配置结果，不是故障。</p>
+    </div>
+}
+
+<div class="card card-primary card-outline">
+    <div class="card-header">
+        <h3 class="card-title"><i class="fa fa-users"></i> 消费组</h3>
+        <div class="card-tools">
+            <label class="mr-3 font-weight-normal"><input id="auto-refresh" type="checkbox" checked /> 自动刷新（10 秒）</label>
+            <span class="text-muted mr-3">采样时间：<span id="stat-time">@metrics.SampledAt.ToString("HH:mm:ss")</span></span>
+            <button class="btn btn-sm btn-default" onclick="location.reload()"><i class="fa fa-sync"></i> 立即刷新</button>
+        </div>
+    </div>
+    <div class="card-body">
+        <p class="text-muted">
+            <b>lag</b> = 该组还没读到的消息条数（超过 200 条只显示下限）；<b>PEL</b> = 已投递但未确认的消息数；
+            <b>僵尸组</b> = 有积压但消费者全部空闲超过 5 分钟，或根本没有消费者。
+        </p>
+
+        <div class="table-responsive">
+            <table class="table table-bordered table-hover table-sm">
+                <thead>
+                    <tr>
+                        <th style="width:190px">消费组</th>
+                        <th style="width:110px">消费者</th>
+                        <th style="width:90px">活跃中</th>
+                        <th style="width:90px">PEL</th>
+                        <th style="width:90px">lag</th>
+                        <th style="width:120px">最长空闲</th>
+                        <th style="width:170px">最后投递 ID</th>
+                        <th>诊断</th>
+                    </tr>
+                </thead>
+                <tbody id="group-body">
+                    @if (metrics.Groups.Count == 0)
+                    {
+                        <tr><td colspan="8" class="text-center text-muted">没有消费组：还没有任何报文写入，或 Redis 不可用</td></tr>
+                    }
+                    else
+                    {
+                        foreach (var group in metrics.Groups)
+                        {
+                            <tr data-group="@group.Name" class="@(group.IsZombie ? "table-danger" : group.IsSlowest ? "table-warning" : "")">
+                                <td>
+                                    <b>@group.Name</b>
+                                    @if (group.IsPersistGroup)
+                                    {
+                                        <span class="badge badge-success">本系统落库组</span>
+                                    }
+                                    @if (group.IsSlowest)
+                                    {
+                                        <span class="badge badge-warning">最慢组</span>
+                                    }
+                                    @if (group.IsZombie)
+                                    {
+                                        <span class="badge badge-danger">僵尸组</span>
+                                    }
+                                </td>
+                                <td data-cell="consumers">@group.Consumers</td>
+                                <td data-cell="active">@group.ActiveConsumers</td>
+                                <td data-cell="pending">@group.Pending</td>
+                                <td data-cell="lag">@group.LagText</td>
+                                <td data-cell="idle">@group.IdleText</td>
+                                <td data-cell="last"><small>@group.LastDeliveredId</small></td>
+                                <td data-cell="advice" class="text-muted"><small>@group.Advice</small></td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card card-info card-outline">
+            <div class="card-header"><h3 class="card-title"><i class="fa fa-cut"></i> 安全裁剪水位</h3></div>
+            <div class="card-body">
+                <table class="table table-sm mb-0">
+                    <tr><th style="width:150px">开关</th><td>@(ViewBag.SafeTrimEnabled == true ? "已启用" : "未启用")（EFBM:SafeTrimEnabled）</td></tr>
+                    <tr><th>扫描间隔</th><td>@ViewBag.SafeTrimIntervalSeconds 秒</td></tr>
+                    <tr><th>保留下限</th><td>@ViewBag.SafeTrimMinRetentionDays 天内的数据绝不删除</td></tr>
+                    <tr><th>上次执行</th><td>@(trim.LastRun > DateTime.MinValue ? trim.LastRun.ToString("yyyy-MM-dd HH:mm:ss") : "尚未执行")</td></tr>
+                    <tr><th>裁剪水位</th><td><code>@(trim.WatermarkId ?? "—")</code></td></tr>
+                    <tr><th>上次删除</th><td>@trim.Trimmed 条</td></tr>
+                    <tr><th>结果</th><td class="text-muted">@(trim.Message ?? "—")</td></tr>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card card-secondary card-outline">
+            <div class="card-header"><h3 class="card-title"><i class="fa fa-info-circle"></i> Stream 概况</h3></div>
+            <div class="card-body">
+                <table class="table table-sm mb-0">
+                    <tr><th style="width:150px">Key</th><td><code>@metrics.StreamKey</code></td></tr>
+                    <tr><th>首条 ID</th><td><code>@(metrics.FirstId ?? "—")</code></td></tr>
+                    <tr><th>末条 ID</th><td><code>@(metrics.LastId ?? "—")</code></td></tr>
+                    <tr><th>最后写入</th><td>@(metrics.LastGenerated > DateTime.MinValue ? metrics.LastGenerated.ToString("yyyy-MM-dd HH:mm:ss") : "—")</td></tr>
+                    <tr><th>本系统落库组</th><td><code>@metrics.PersistGroup</code></td></tr>
+                    <tr>
+                        <th>健康检查</th>
+                        <td><a href="/health" target="_blank">/health</a>（含队列连接与长度）</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="refresh-hint" class="alert alert-warning d-none">
+    消费组列表发生变化（新增或删除），请点击「立即刷新」重新加载页面。
+</div>
+
+<script>
+    (function () {
+        const box = document.getElementById('auto-refresh');
+        const key = 'efbm.queueMonitor.autoRefresh';
+        if (localStorage.getItem(key) === '0') box.checked = false;
+        box.addEventListener('change', () => localStorage.setItem(key, box.checked ? '1' : '0'));
+
+        const set = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
+
+        async function refresh() {
+            try {
+                const res = await fetch('/Admin/QueueMonitor/Snapshot', { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+                const json = await res.json();
+                if (!json || json.code !== 0 || !json.data) return;
+
+                const data = json.data;
+                // 序列化器的命名策略由宿主决定，这里两种都认，免得上线后页面一片 undefined
+                const groups = (data.groups || data.Groups || []).map(g => ({
+                    name: g.name ?? g.Name,
+                    consumers: g.consumers ?? g.Consumers,
+                    activeConsumers: g.activeConsumers ?? g.ActiveConsumers,
+                    pending: g.pending ?? g.Pending,
+                    lag: g.lag ?? g.Lag,
+                    lagCapped: g.lagCapped ?? g.LagCapped,
+                    idleText: g.idleText ?? g.IdleText,
+                    advice: g.advice ?? g.Advice,
+                    isSlowest: g.isSlowest ?? g.IsSlowest,
+                    isZombie: g.isZombie ?? g.IsZombie,
+                }));
+
+                set('stat-length', data.length ?? data.Length);
+                const rate = data.publishRate ?? data.PublishRate;
+                set('stat-rate', rate === null || rate === undefined ? '—' : Number(rate).toFixed(2));
+                set('stat-lag', groups.reduce((sum, g) => sum + (g.lag || 0), 0));
+                set('stat-pending', groups.reduce((sum, g) => sum + (g.pending || 0), 0));
+                set('stat-time', new Date(data.sampledAt ?? data.SampledAt).toLocaleTimeString());
+
+                let changed = false;
+                for (const group of groups) {
+                    const row = document.querySelector(`tr[data-group="${group.name}"]`);
+                    if (!row) { changed = true; continue; }
+
+                    const cell = name => row.querySelector(`[data-cell="${name}"]`);
+                    cell('consumers').textContent = group.consumers;
+                    cell('active').textContent = group.activeConsumers;
+                    cell('pending').textContent = group.pending;
+                    cell('lag').textContent = group.lagCapped ? `≥${group.lag}` : group.lag;
+                    cell('idle').textContent = group.idleText;
+                    cell('advice').innerHTML = `<small>${group.advice || ''}</small>`;
+                    row.classList.toggle('table-danger', !!group.isZombie);
+                    row.classList.toggle('table-warning', !group.isZombie && !!group.isSlowest);
+                }
+
+                document.getElementById('refresh-hint').classList.toggle('d-none', !changed);
+            } catch (e) {
+                // 刷新失败保持页面现状：监控页不该因为一次网络抖动变成空白
+                console.warn('刷新消费组指标失败', e);
+            }
+        }
+
+        setInterval(() => { if (box.checked) refresh(); }, 10000);
+    })();
+</script>

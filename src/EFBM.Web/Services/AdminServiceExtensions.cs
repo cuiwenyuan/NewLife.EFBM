@@ -1,9 +1,9 @@
 namespace EFBM.Web.Services;
 
-/// <summary>后台服务的 DI 注册：检索、重放与导出 / 清理。</summary>
+/// <summary>后台服务的 DI 注册：检索、重放、导出 / 清理、故障处置与字段演进。</summary>
 public static class AdminServiceExtensions
 {
-    /// <summary>注册后台页面依赖的检索 / 重放 / 导出服务。</summary>
+    /// <summary>注册后台页面依赖的服务。</summary>
     /// <param name="services">服务集合。</param>
     /// <returns>服务集合，支持链式调用。</returns>
     public static IServiceCollection AddEFBMAdmin(this IServiceCollection services)
@@ -14,6 +14,10 @@ public static class AdminServiceExtensions
         services.AddSingleton<EventQueryService>();
         services.AddSingleton<EventReplayService>();
         services.AddSingleton<EventExportService>();
+
+        // 故障处置与字段演进同样无状态（状态在库表里），单例即可
+        services.AddSingleton<FaultDisposalService>();
+        services.AddSingleton<FieldEvolutionService>();
 
         return services;
     }
