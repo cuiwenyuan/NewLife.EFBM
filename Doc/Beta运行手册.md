@@ -19,6 +19,8 @@
 | Beta 凭据引导 | ✅ | 配置驱动自动建一台设备 + 一套凭据，后台发放页面未上线也能联调 |
 | 消费入库（P3 已完成） | ✅ | 开启 Redis 后，常驻消费者 `PersistConsumerService` 把 Stream 消息落进 `DeviceEventRaw` / `WorkOrder` / `ProductionRecord` / `DeviceStatusLog` / `FaultRecord` 等业务表，重复投递幂等（只 1 行 + `RepeatCount`）；`/health` 的 `consumer` 段可见 `taken/persisted/duplicates/deadLettered` |
 | 日志回放补录 `--replay` | ✅ | 纯日志模式没有消费者，用 `dotnet EFBM.Web.dll --replay <日志文件或目录>` 把历史日志补录进库，幂等由 `EventKey` 兜住，可重复跑 |
+| 后台管理接口（P4 已完成） | ✅ | `api/admin/events`（检索 / 原文 / 手动标记 / 单条重放）、`api/admin/deadletters`（列表 / 详情 / 重放）；需 Cube 账号登录，未登录 401；用法见 §4.7 |
+| 后台页面（P4 进行中） | ❌ | 报文列表、原文查看、死信页、状态字典维护等 Cube 页面尚未交付，当前用接口或日志排查 |
 
 ### 1.1 一次请求的三种落点
 
@@ -280,6 +282,25 @@ redis-cli -n 5 XINFO GROUPS efbm:events  # 消费者组与 lag（消费未开始
 redis-cli -n 5 XRANGE efbm:events - + COUNT 1
 ```
 
+### 4.7 后台接口（P4 已交付，页面未完）
+
+后台接口挂在 `/api/admin/` 下，沿用 `{code,message,data}` 响应体，**必须先用 Cube 账号登录**（未登录返回 401 并跳 `/Admin/User/Login?ReturnUrl=...`，已实测）。
+
+| 方法与路径 | 用途 |
+| --- | --- |
+| `GET api/admin/events` | 原始报文检索：`deviceId` / `event` / `eventKey` / `processStatus` / `handleStatus` / `from` / `to` / `keyword` + `page` / `pageSize`（上限 200） |
+| `GET api/admin/events/{id}` | 原文详情：`rawJson` / `dataJson` / `extJson` / `unknownFields` / `parseWarning` |
+| `POST api/admin/events/{id}/mark` | 手动标记：`{"handleStatus":1,"remark":"已核对"}`，写处理人与时间，不改报文 |
+| `POST api/admin/events/{id}/replay` | 单条重放入流：新 `messageId` + `replayOf` 指向原消息，`eventKey` 与原文不变 |
+| `GET api/admin/deadletters` | 死信检索：`eventKey` / `messageId` / `replayStatus` / `from` / `to` + 分页 |
+| `POST api/admin/deadletters/{id}/replay` | 死信重放：成功才回写 `ReplayStatus` / `ReplayAt` / `ReplayBy` |
+
+注意三点：
+
+1. **纯日志模式不能重放**：`EFBM:RedisEnabled=false` 时没有任何消费者，接口返回 409 并提示改用 `--replay` 补录（见 §4.4）。
+2. **重放不覆盖数据**：`eventKey` 与原报文一致，消费端命中幂等只累加 `RepeatCount`；死信（`processStatus=2`）重放后会重新执行 handler 并收敛为落库一次。
+3. **接口本身不下发凭据**：设备凭据仍走配置引导（§6），后台凭据发放页面在 P4 后续交付。
+
 ---
 
 ## 5. 文本日志格式
@@ -375,7 +396,7 @@ jq -r 'select(.status==200) | .raw' logs/api/api-20261112.log > replay.jsonl
 
 ## 8. 已知限制与下一步
 
-1. **日志不是数据库**：查询只能 `grep` / `jq`，没有后台页面（P4）。P3 落库后日志已退化为**审计与补录源**——`--replay`（§4.4）可把历史日志补进业务表。
+1. **日志不是数据库**：`grep` / `jq` 仍是排查**接收侧**问题最快的方式；后台接口（§4.7）已能按条件检索并重放，但**页面未交付**，只能走接口或日志。P3 落库后日志已退化为**审计与补录源**——`--replay`（§4.4）可把历史日志补进业务表。
 2. **纯日志模式不写兜底表**：避免同一份数据在 SQLite 里无限堆积；切到 Redis 模式后新请求才会进兜底表。
 3. **纯日志模式无消费者**：默认 `RedisEnabled=false` 时数据只进文本日志，靠 `--replay` 补录；启用 Redis 后 `PersistConsumerService` 常驻消费落库。
 4. **安全裁剪已交付（P4）**：`StreamTrimHostedService` 周期按各组最小已确认 ID 执行 `XTRIM MINID`，绝不删除未确认消息；需 Redis ≥ 6.2，低于该版本会在首次执行时报错并自动停跑（日志提示）；`EFBM:RedisEnabled=false` 纯日志模式不启动该任务。

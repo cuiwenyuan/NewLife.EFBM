@@ -5,8 +5,8 @@ namespace EFBM.Web.Queue;
 /// <summary>安全裁剪的纯算法层：把「各消费组已确认边界 + 保留下限」计算成 <c>XTRIM MINID</c> 的阈值。</summary>
 /// <remarks>
 /// 核心不变量：<b>绝不删除任何消费组尚未确认的消息</b>。因此裁剪点 = 各组「最小已确认 ID」的最小值，
-/// 再与「保留下限」（最近 N 天）取小——保留下限只会让裁剪点更靠前（删更多已确认旧数据），
-/// 永远不会越过未确认边界。<see cref="ComputeEffectiveMs"/> 的 <c>Min(safe, floor)</c> 即此语义。
+/// 再与「保留下限」（最近 N 天）取小：<c>Min</c> 只会让裁剪点更早（时间更小）、删得更少，是更保守的一侧，
+/// 因此永远不会越过未确认边界。<see cref="ComputeEffectiveMs"/> 的 <c>Min(safe, floor)</c> 即此语义。
 /// 本类不含任何 Redis 依赖，便于单元测试。
 /// </remarks>
 public static class StreamTrimCalculator
@@ -65,7 +65,7 @@ public static class StreamTrimCalculator
     /// <param name="safeMs">各消费组最小已确认 ID 的毫秒。</param>
     /// <param name="floorMs">保留下限（最近 N 天对应的毫秒时间戳）。</param>
     /// <returns>
-    /// <c>Min(safeMs, floorMs)</c>：下限只会让裁剪点更靠前（删更多已确认旧数据），
+    /// <c>Min(safeMs, floorMs)</c>：下限只会让裁剪点更早（删更少已确认旧数据），
     /// 永远不会越过未确认边界；<paramref name="safeMs"/> 非法时返回 -1（不裁剪）。
     /// </returns>
     public static Int64 ComputeEffectiveMs(Int64 safeMs, Int64 floorMs)

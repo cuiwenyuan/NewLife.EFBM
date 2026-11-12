@@ -1,5 +1,3 @@
-using System.Runtime.Serialization;
-
 namespace EFBM.Core;
 
 /// <summary>原始报文处理状态（<c>DeviceEventRaw.ProcessStatus</c>）。</summary>
@@ -105,6 +103,10 @@ public sealed class RawEventRecord
 }
 
 /// <summary>并发插入同一 <c>EventKey</c> 时由实现方抛出（唯一索引冲突）。</summary>
+/// <remarks>
+/// 只用于进程内控制流（消费者捕获后重新查询接管），不跨进程传递；
+/// .NET 8 起基于 <c>BinaryFormatter</c> 的序列化构造已废弃，因此不再提供序列化构造函数。
+/// </remarks>
 [Serializable]
 public sealed class DuplicateEventKeyException : Exception
 {
@@ -114,12 +116,6 @@ public sealed class DuplicateEventKeyException : Exception
 
     /// <summary>冲突的幂等键。</summary>
     public String EventKey { get; }
-
-    /// <summary>序列化构造。</summary>
-    /// <param name="info">序列化信息。</param>
-    /// <param name="context">上下文。</param>
-    private DuplicateEventKeyException(SerializationInfo info, StreamingContext context) : base(info, context)
-        => EventKey = info.GetString(nameof(EventKey));
 }
 
 /// <summary>原始报文表访问抽象：幂等判定与状态流转的唯一入口（FR-6、FR-7）。</summary>

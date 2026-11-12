@@ -40,6 +40,7 @@ services.AddCube();                 // 权限、菜单、实体控制器扫描
 services.AddEFBMQueue();            // 共享上报流（惰性构造，首次写入才连 Redis 建组）
 services.AddEFBMReceive();          // P2：解析 / 三模式鉴权 / 单端点编排 / 本地兜底回灌
 services.AddEFBMConsumers();        // P3：事件处理器注册表 / 消费落库编排 / 常驻落库消费者
+services.AddEFBMAdmin();            // P4：后台原始报文检索 / 死信查询 / 重放与手动标记
 
 var app = builder.Build();
 
@@ -55,8 +56,17 @@ if (app.Environment.IsDevelopment())
 else
     app.UseExceptionHandler("/CubeHome/Error");
 
-app.UseCube(app.Environment);
+// 显式三段：路由 → 认证 → 授权，必须早于 UseCube 注册。
+// Cube 的 UseCube 把「路由 + 端点映射」放在同一个调用里（内部 UseRouter 会 UseRouting + UseEndpoints），
+// 因此注册在它之后的 UseAuthorization 永远不会执行，后台接口的 [Authorize] 会退化成
+// 「endpoint 带授权元数据却没有授权中间件」的 500。先 UseRouting 让 Cube 复用同一条路由管道
+// （它检测 __EndpointRouteBuilder），授权中间件才能读到端点元数据；Cube 内部的 UseAuthentication
+// 变成第二次调用，对已认证的请求是幂等的。
+app.UseRouting();
+app.UseAuthentication();
 app.UseAuthorization();
+
+app.UseCube(app.Environment);
 
 app.MapControllerRoute(
     name: "default",
