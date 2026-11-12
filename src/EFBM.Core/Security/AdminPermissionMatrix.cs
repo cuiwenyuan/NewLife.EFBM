@@ -34,6 +34,7 @@ public static class AdminPermissionMatrix
         AdminOperation.QueryDeadLetters,
         AdminOperation.ViewDeadLetterDetail,
         AdminOperation.ReplayDeadLetter,
+        AdminOperation.QueryAudits,
     ];
 
     /// <summary>管理员：运维 + 清理（唯一会删数据的操作）。</summary>
@@ -49,6 +50,7 @@ public static class AdminPermissionMatrix
         AdminOperation.QueryDeadLetters,
         AdminOperation.ViewDeadLetterDetail,
         AdminOperation.ReplayDeadLetter,
+        AdminOperation.QueryAudits,
     ];
 
     private static readonly Dictionary<AdminRole, AdminOperation[]> _matrix = new()

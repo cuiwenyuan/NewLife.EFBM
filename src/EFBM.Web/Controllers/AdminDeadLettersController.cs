@@ -76,6 +76,8 @@ public sealed class AdminDeadLettersController : AdminControllerBase
     /// <returns>新消息 ID 与 Stream 消息 ID，或失败原因。</returns>
     [HttpPost("{id:long}/replay")]
     [RequireAdminOperation(AdminOperation.ReplayDeadLetter)]
+    [RequireConfirm(AdminOperation.ReplayDeadLetter)]
+    [Audit("重放死信")]
     public async Task<ObjectResult> Replay(Int64 id, CancellationToken cancellationToken)
     {
         var result = await _replay.ReplayDeadLetterAsync(id, OperatorName, cancellationToken).ConfigureAwait(false);

@@ -70,6 +70,7 @@ public sealed class AdminEventsController : AdminControllerBase
     /// <returns>标记结果或 404。</returns>
     [HttpPost("{id:long}/mark")]
     [RequireAdminOperation(AdminOperation.MarkEvent)]
+    [Audit("标记处理状态")]
     public async Task<ObjectResult> Mark(Int64 id, [FromBody] MarkRequest request, CancellationToken cancellationToken)
     {
         request ??= new MarkRequest();
@@ -84,6 +85,8 @@ public sealed class AdminEventsController : AdminControllerBase
     /// <returns>新消息 ID 与 Stream 消息 ID，或失败原因。</returns>
     [HttpPost("{id:long}/replay")]
     [RequireAdminOperation(AdminOperation.ReplayEvent)]
+    [RequireConfirm(AdminOperation.ReplayEvent)]
+    [Audit("重放原始报文")]
     public async Task<ObjectResult> Replay(Int64 id, CancellationToken cancellationToken)
     {
         var result = await _replay.ReplayEventAsync(id, OperatorName, cancellationToken).ConfigureAwait(false);
@@ -114,6 +117,8 @@ public sealed class AdminEventsController : AdminControllerBase
     /// <returns>命中 / 尝试 / 成功 / 失败统计与错误摘要。</returns>
     [HttpPost("replay-range")]
     [RequireAdminOperation(AdminOperation.ReplayEvent)]
+    [RequireConfirm(AdminOperation.ReplayEvent)]
+    [Audit("按范围批量重放")]
     public async Task<ObjectResult> ReplayRange([FromBody] ReplayRangeRequest request, CancellationToken cancellationToken)
     {
         request ??= new ReplayRangeRequest();
@@ -136,6 +141,7 @@ public sealed class AdminEventsController : AdminControllerBase
     /// <returns>凭证 ID、条数、文件哈希与过期时间。</returns>
     [HttpPost("export")]
     [RequireAdminOperation(AdminOperation.ExportEvents)]
+    [Audit("导出原始报文")]
     public async Task<ObjectResult> Export([FromQuery] DateTime? from, [FromQuery] DateTime? to, CancellationToken cancellationToken)
     {
         if (!from.HasValue || !to.HasValue) return Failure(400, "必须同时提供 from 与 to（接收时间范围）");
@@ -166,6 +172,8 @@ public sealed class AdminEventsController : AdminControllerBase
     /// <returns>实际删除条数与导出条数；凭证无效 409。</returns>
     [HttpPost("cleanup")]
     [RequireAdminOperation(AdminOperation.CleanupEvents)]
+    [RequireConfirm(AdminOperation.CleanupEvents)]
+    [Audit("清理原始报文")]
     public async Task<ObjectResult> Cleanup([FromBody] CleanupRequest request, CancellationToken cancellationToken)
     {
         request ??= new CleanupRequest();

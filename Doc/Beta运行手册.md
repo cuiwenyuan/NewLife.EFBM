@@ -306,13 +306,15 @@ curl -s -H "Cookie: token-EFBM.Web=eyJ..." http://127.0.0.1:5000/api/admin/permi
 | `POST api/admin/events/export?from=...&to=...` | 按接收时间导出 CSV（UTF-8 BOM，Excel 直开不乱码），返回 `ticketId` / `rowCount` / `sha256` / `expiresAt`；单次上限 20 万条 |
 | `GET api/admin/events/export/{ticketId}/download` | 下载导出文件 |
 | `POST api/admin/events/cleanup` | **凭导出凭证**清理：`{"ticketId":"..."}`；无凭证 / 过期 / 文件被改动一律 409 拒绝，只删导出过的部分 |
+| `GET api/admin/audits` | 审计查询：`action` / `operator` / `from` / `to` / `success` + `page` / `pageSize`（上限 200），最低运维 |
 
-注意四点：
+注意五点：
 
 1. **纯日志模式不能重放**：`EFBM:RedisEnabled=false` 时没有任何消费者，接口返回 409 并提示改用 `--replay` 补录（见 §4.4）。
 2. **重放不覆盖数据**：`eventKey` 与原报文一致，消费端命中幂等只累加 `RepeatCount`；死信（`processStatus=2`）重放后会重新执行 handler 并收敛为落库一次。
 3. **接口本身不下发凭据**：设备凭据仍走配置引导（§6），后台凭据发放页面在 P4 后续交付。
-4. **清理必须先导出**：凭证默认 30 分钟有效、用后即废，只保存在进程内存——重启后旧凭证失效，需要重新导出。导出文件落在 `EFBM:ExportDirectory`（默认 `logs/export`，相对路径以 DLL 所在目录为基准），凭证会校验文件 SHA-256，**拷走文件后不要改动它**，否则清理会被拒绝。
+4. **危险操作要带确认头**：重放（单条 / 按范围 / 死信）与清理必须带 `X-Confirm: <动作名>`，例如 `X-Confirm: CleanupEvents`、`X-Confirm: ReplayEvent`、`X-Confirm: ReplayDeadLetter`；缺头或值不对返回 400。这是服务端强制的二次确认，页面弹窗只是配合它，不是替代品。
+5. **清理必须先导出**：凭证默认 30 分钟有效、用后即废，只保存在进程内存——重启后旧凭证失效，需要重新导出。导出文件落在 `EFBM:ExportDirectory`（默认 `logs/export`，相对路径以 DLL 所在目录为基准），凭证会校验文件 SHA-256，**拷走文件后不要改动它**，否则清理会被拒绝。
 
 ### 4.8 后台角色与权限矩阵（AUTH-3a，P4 已交付）
 
@@ -340,6 +342,20 @@ curl -b cookie.txt http://127.0.0.1:5000/api/admin/permissions | jq '{user,role,
 ```
 
 返回里还有 `matrix`（三角色全量矩阵）与 `operations`（每个动作的最低角色），与上表同源——页面做菜单收敛也读它，不再手写一份。
+
+### 4.9 操作审计（AUTH-3b，P4 已交付）
+
+后台的写操作都会留痕：标记、重放、按范围重放、导出、清理，成功失败都记一条（失败的也在，因为「谁试过什么」同样是证据）。日志写进 Cube 的 `Log` 表，因此**后台「日志」页也能直接看到**，`Category` 固定为 `EFBM后台`。
+
+```bash
+# 最近 10 条，只看失败的
+curl -s -H "Cookie: token-EFBM.Web=eyJ..." "http://127.0.0.1:5000/api/admin/audits?success=false&pageSize=10" | jq '.data.items[] | {action,operator,summary,time}'
+```
+
+字段含义：`action` 动作、`operator` 操作人、`ip` 来源 IP、`targetId` 目标主键（报文 / 死信 ID）、`success` 成败、`summary` 结果摘要（删除条数、新消息 ID 或失败原因）、`remark` 参数摘要（时间范围、条数上限等）、`traceId` 与服务日志对齐用。
+
+审计写入**不会拖垮业务**：写日志失败只打应用日志，不会让已经执行的清理/重放回滚成「不知道做没做」。
+
 
 ---
 

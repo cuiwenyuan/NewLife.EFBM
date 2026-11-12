@@ -54,6 +54,9 @@ public enum AdminOperation
 
     /// <summary>死信手动重放。</summary>
     ReplayDeadLetter,
+
+    /// <summary>查询后台操作审计日志。</summary>
+    QueryAudits,
 }
 
 /// <summary>角色与操作的展示名、解析工具。</summary>
@@ -120,6 +123,7 @@ public static class AdminOperationInfo
         AdminOperation.QueryDeadLetters => "查询死信",
         AdminOperation.ViewDeadLetterDetail => "查看死信详情",
         AdminOperation.ReplayDeadLetter => "重放死信",
+        AdminOperation.QueryAudits => "查询审计日志",
         _ => operation.ToString(),
     };
 }

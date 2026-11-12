@@ -17,6 +17,9 @@ public static class AdminServiceExtensions
         services.AddSingleton<EventReplayService>();
         services.AddSingleton<EventExportService>();
 
+        // 审计写 Cube 的 Log 表（Membership 库），无状态、可单例
+        services.AddSingleton<IAuditStore, CubeAuditStore>();
+
         // 角色解析只依赖配置（内置别名 + EFBM:Admin:RoleAliases），构造一次复用，避免每次请求重建字典
         services.AddSingleton<IAdminRoleResolver, AdminRoleResolver>();
 
