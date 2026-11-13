@@ -8,8 +8,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="NewLife.Core" Version="11.11.2026.201" />
-    <PackageReference Include="NewLife.XCode" Version="11.24.2026.201" />
+    <PackageReference Include="NewLife.Core" Version="12.0.2026.1024" />
+    <PackageReference Include="NewLife.XCode" Version="12.3.2026.1024" />
+    <PackageReference Include="XCode.MySql" Version="11.24.2026.201" />
     <PackageReference Include="XCode.SQLite" Version="11.24.2026.201" />
   </ItemGroup>
 

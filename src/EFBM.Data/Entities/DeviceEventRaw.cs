@@ -114,6 +114,14 @@ public partial class DeviceEventRaw
     [BindColumn("ExtJson", "未识别字段 JSON", "")]
     public String ExtJson { get => _ExtJson; set { if (OnPropertyChanging("ExtJson", value)) { _ExtJson = value; OnPropertyChanged("ExtJson"); } } }
 
+    private String _BoxType;
+    /// <summary>箱型。2026-11-13 字段固化演练：从 data.boxType 固化为正式列，历史数据经回溯回填补齐</summary>
+    [DisplayName("箱型")]
+    [Description("箱型。2026-11-13 字段固化演练：从 data.boxType 固化为正式列，历史数据经回溯回填补齐")]
+    [DataObjectField(false, false, true, 20)]
+    [BindColumn("BoxType", "箱型。2026-11-13 字段固化演练：从 data.boxType 固化为正式列，历史数据经回溯回填补齐", "")]
+    public String BoxType { get => _BoxType; set { if (OnPropertyChanging("BoxType", value)) { _BoxType = value; OnPropertyChanged("BoxType"); } } }
+
     private String _UnknownFields;
     /// <summary>未识别字段名清单，逗号分隔</summary>
     [DisplayName("未识别字段名清单")]
@@ -247,6 +255,7 @@ public partial class DeviceEventRaw
             "RawJson" => _RawJson,
             "DataJson" => _DataJson,
             "ExtJson" => _ExtJson,
+            "BoxType" => _BoxType,
             "UnknownFields" => _UnknownFields,
             "ParseVersion" => _ParseVersion,
             "ParseWarning" => _ParseWarning,
@@ -278,6 +287,7 @@ public partial class DeviceEventRaw
                 case "RawJson": _RawJson = Convert.ToString(value); break;
                 case "DataJson": _DataJson = Convert.ToString(value); break;
                 case "ExtJson": _ExtJson = Convert.ToString(value); break;
+                case "BoxType": _BoxType = Convert.ToString(value); break;
                 case "UnknownFields": _UnknownFields = Convert.ToString(value); break;
                 case "ParseVersion": _ParseVersion = Convert.ToString(value); break;
                 case "ParseWarning": _ParseWarning = Convert.ToString(value); break;
@@ -412,6 +422,9 @@ public partial class DeviceEventRaw
         /// <summary>未识别字段 JSON</summary>
         public static readonly Field ExtJson = FindByName("ExtJson");
 
+        /// <summary>箱型。2026-11-13 字段固化演练：从 data.boxType 固化为正式列，历史数据经回溯回填补齐</summary>
+        public static readonly Field BoxType = FindByName("BoxType");
+
         /// <summary>未识别字段名清单，逗号分隔</summary>
         public static readonly Field UnknownFields = FindByName("UnknownFields");
 
@@ -492,6 +505,9 @@ public partial class DeviceEventRaw
 
         /// <summary>未识别字段 JSON</summary>
         public const String ExtJson = "ExtJson";
+
+        /// <summary>箱型。2026-11-13 字段固化演练：从 data.boxType 固化为正式列，历史数据经回溯回填补齐</summary>
+        public const String BoxType = "BoxType";
 
         /// <summary>未识别字段名清单，逗号分隔</summary>
         public const String UnknownFields = "UnknownFields";

@@ -24,8 +24,12 @@ efbm.ValidateOrThrow();
 // 显式登记数据库连接：XCode 默认从 appsettings 自动发现连接，但当进程内容根不是应用目录
 // （例如 --replay 在别处目录执行）时可能漏配，导致数据被写进回退库而静默丢失。这里从配置
 // 显式登记 EFBM / Membership，保证接收链路与回放工具都绑定到真实库（数据完整性优先）。
-RegisterConnection("EFBM", builder.Configuration.GetConnectionString("EFBM"));
-RegisterConnection("Membership", builder.Configuration.GetConnectionString("Membership"));
+RegisterConnection("EFBM", builder.Configuration.GetConnectionString("EFBM"), efbm.AutoMigrate);
+RegisterConnection("Membership", builder.Configuration.GetConnectionString("Membership"), efbm.AutoMigrate);
+
+// 建表是异步的（见 WaitForTables 注释）：等业务库的表真正可查再放后台服务跑，
+// 否则兜底回灌 / 落库消费者的首轮必然撞「Table doesn't exist」
+if (efbm.AutoMigrate) WaitForTables(EfbmDefaults.ConnectionName, TimeSpan.FromSeconds(8));
 
 // 关闭 SQL 日志；Migration=On 由 Config/XCode.config 控制，字段固化时自动建表 / 加列
 var xset = XCodeSetting.Current;
@@ -124,7 +128,7 @@ app.Run();
 /// <summary>把配置里的连接串显式登记进 XCode DAL；已存在则覆盖，幂等。</summary>
 /// <param name="name">连接名，须与实体 <c>ConnName</c> 一致（EFBM / Membership）。</param>
 /// <param name="connectionString">连接串；含 <c>Provider=MySql</c> 视为 MySQL，否则 SQLite。</param>
-static void RegisterConnection(String name, String connectionString)
+static void RegisterConnection(String name, String connectionString, Boolean autoMigrate)
 {
     if (String.IsNullOrWhiteSpace(connectionString)) return;
 
@@ -134,4 +138,97 @@ static void RegisterConnection(String name, String connectionString)
 
     var dbType = connectionString.Contains("Provider=MySql", StringComparison.OrdinalIgnoreCase) ? "MySql" : "SQLite";
     DAL.AddConnStr(name, connectionString, null, dbType);
+
+    // 启动即建表：XCode 的反向工程是惰性的（首次访问实体才检查表结构），而兜底回灌服务与落库
+    // 消费者在启动后几十毫秒内就开始跑 SQL。空库首次部署会在建表之前撞「Table doesn't exist」，
+    // 兜底扫描直接失败。SQLite 老库因历史表已存在一直没暴露，换 MySQL 空库后 100% 复现。
+    //
+    // 必须用 InitConnection 而不是 CheckTables：实测 CheckTables 只是把建表任务排进去就返回
+    // （日志显示 194ms「完成」，但 MySQL 的 create_time 记录表实际建在 1.5 秒之后），
+    // 期间后台服务查表已经失败。InitConnection 会同步完成反向工程检查+建表，返回即可查。
+    // 库不可达时这里抛异常让启动失败——这是刻意的：连不上库就不该假装正常。
+    if (!autoMigrate) return;
+
+    var sw = System.Diagnostics.Stopwatch.StartNew();
+
+    // EFBM 是我们自己的模型，主动触发反向工程；Membership 归 Cube 管，只做结构检查不越权初始化数据
+    if (String.Equals(name, EfbmDefaults.ConnectionName, StringComparison.OrdinalIgnoreCase))
+        InitEntities(name);
+    else
+        DAL.Create(name).CheckTables();
+
+    XTrace.WriteLine("启动建表完成：{0}（provider={1}，{2}ms）", name, dbType, sw.ElapsedMilliseconds);
+}
+
+/// <summary>主动初始化指定连接下的全部实体，触发反向工程建表。</summary>
+/// <param name="name">连接名。</param>
+/// <remarks>
+/// 为什么不能只调 <c>EntityFactory.InitConnection</c> / <c>DAL.CheckTables</c>：这两个方法都依赖
+/// 「实体已注册」，而 XCode 的实体是在<b>类型被首次访问</b>时才由静态构造函数注册的。启动阶段
+/// 没有任何代码引用过实体类，于是 InitConnection 拿到的实体清单是空的——它老老实实返回「完成」，
+/// 却一张表都没建。空库实测：等 30 秒表依然不存在，直到兜底回灌服务第一次查询触发实体静态构造。</remarks>
+static void InitEntities(String name)
+{
+    var assembly = typeof(EFBM.Data.Entities.Device).Assembly;
+    var count = 0;
+
+    foreach (var type in assembly.GetTypes())
+    {
+        if (type.IsAbstract || type.IsInterface || !typeof(IEntity).IsAssignableFrom(type)) continue;
+
+        EntityFactory.InitEntity(type);
+        count++;
+    }
+
+    XTrace.WriteLine("实体初始化：{0} 个（连接 {1}）", count, name);
+}
+
+/// <summary>等到连接下所有表真正可查，避免后台服务撞上还在建的窗口。</summary>
+/// <param name="name">连接名。</param>
+/// <param name="timeout">最长等待时间。</param>
+/// <remarks>
+/// 为什么光有 <c>CheckTables</c> / <c>InitConnection</c> 不够：XCode 的表结构准备是<b>异步</b>的
+/// （<c>DAL.Tables</c> 的文档原文就是「异步缓存延迟 1 秒」），空库实测 initConnection 在 362ms
+/// 就返回「完成」，但 MySQL 的 <c>create_time</c> 记录 12 张表实际建在 1.5 秒之后。这中间
+/// 兜底回灌服务已经在查 <c>LocalQueueFallback</c>，撞上「Table doesn't exist」。
+///
+/// 探测用 <c>where 1=0</c> 而不是 <c>count(*)</c>：不扫数据，百万级表也是毫秒返回。
+/// 表名取 <see cref="IDataTable.TableName"/>（数据库实际表名，已按 NameFormat 转换），
+/// 不能用模型名——Linux 上的 MySQL 表名区分大小写。
+/// </remarks>
+static void WaitForTables(String name, TimeSpan timeout)
+{
+    var dal = DAL.Create(name);
+    var sw = System.Diagnostics.Stopwatch.StartNew();
+
+    while (sw.Elapsed < timeout)
+    {
+        var tables = dal.Tables;
+        if (tables != null && tables.Count > 0)
+        {
+            var pending = 0;
+            foreach (var table in tables)
+            {
+                try
+                {
+                    dal.Query<Int32>($"select count(*) from {table.TableName} where 1=0");
+                }
+                catch
+                {
+                    pending++;
+                }
+            }
+
+            if (pending == 0)
+            {
+                if (sw.ElapsedMilliseconds > 50)
+                    XTrace.WriteLine("表结构已就绪：{0}（{1} 张表，等待 {2}ms）", name, tables.Count, sw.ElapsedMilliseconds);
+                return;
+            }
+        }
+
+        Thread.Sleep(100);
+    }
+
+    XTrace.WriteLine("表结构等待超时（{0}ms）：{1}，继续启动；后续查询可能首批失败并自动重试", timeout.TotalMilliseconds, name);
 }

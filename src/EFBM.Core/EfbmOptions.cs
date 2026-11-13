@@ -147,6 +147,19 @@ public class EfbmOptions
     /// <summary>启动时补齐「运维 / 只读」内置角色的后台菜单授权（FR-14）；现场手工调整过角色可关闭。</summary>
     public Boolean SeedAdminRoles { get; set; } = true;
 
+    /// <summary>启动时显式建表 / 加列（按 <c>Config/XCode.config</c> 的 <c>Migration</c> 策略）。默认 <c>true</c>。</summary>
+    /// <remarks>
+    /// 为什么必须显式做一次：XCode 的反向工程是<b>惰性</b>的——只有第一次访问某个实体时才检查表结构。
+    /// 而兜底回灌服务与落库消费者在启动后几十毫秒内就开始跑 SQL，空库首次部署（或新切到 MySQL 的空库）
+    /// 会在建表之前撞上「Table 'efbm.localqueuefallback' doesn't exist」，兜底扫描直接失败。
+    /// SQLite 老库因为历史表早已存在，这个问题一直没暴露；换成 MySQL 空库后 100% 复现。
+    ///
+    /// 建表放在连接注册之后、任何后台服务启动之前，顺序就固定了。库不可达时这里会直接抛异常让启动失败，
+    /// 这是刻意的：数据库连不上就应该立刻停下来，而不是让服务在「表都不存在」的状态下假装正常。
+    /// 需要自行管理表结构的环境（DBA 统一执行脚本）把它设为 <c>false</c>。
+    /// </remarks>
+    public Boolean AutoMigrate { get; set; } = true;
+
     /// <summary>魔方「在线用户」统计档位：<c>0</c> 不记录 / <c>1</c> 仅记录已登录用户 / <c>2</c> 记录所有访客。默认 <c>1</c>。</summary>
     /// <remarks>
     /// 为什么不用框架默认的 <c>2</c>：魔方 <c>RunTimeMiddleware</c> 对<b>每一个</b>请求都会写一次 <c>UserOnline</c>，

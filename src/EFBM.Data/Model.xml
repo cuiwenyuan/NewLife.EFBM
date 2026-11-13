@@ -93,6 +93,7 @@
         <Column Name="RawJson" DataType="String" Length="-1" Description="未经改写的原始报文全文" />
         <Column Name="DataJson" DataType="String" Length="-1" Description="data 节点原文" />
         <Column Name="ExtJson" DataType="String" Length="-1" Description="未识别字段 JSON" />
+        <Column Name="BoxType" DataType="String" Length="20" Description="箱型。2026-11-13 字段固化演练：从 data.boxType 固化为正式列，历史数据经回溯回填补齐" />
         <Column Name="UnknownFields" DataType="String" Length="1000" Description="未识别字段名清单，逗号分隔" />
         <Column Name="ParseVersion" DataType="String" Length="20" Description="解析版本。当前 1.0" />
         <Column Name="ParseWarning" DataType="String" Length="200" Description="解析告警编码，见字段字典 §5" />

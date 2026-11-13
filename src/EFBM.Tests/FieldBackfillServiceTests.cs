@@ -61,7 +61,9 @@ public sealed class FieldBackfillServiceTests
         var result = await _service.BackfillAsync(new BackfillRequest { Event = eventName }, "tester");
 
         Assert.True(result.Success);
-        Assert.Equal(0, result.Updated);
+        // 行计数为 1：ExtJson 里的 boxType 已存在不重写，但空的固化列 BoxType 会从 DataJson 补值，
+        // 固化列回填命中也算一次更新（2026-11-13 字段固化演练引入固化列赋值后口径扩展）
+        Assert.Equal(1, result.Updated);
 
         var saved = DeviceEventRaw.FindById(raw.Id);
         Assert.Contains("KEEP", saved.ExtJson);
@@ -149,6 +151,60 @@ public sealed class FieldBackfillServiceTests
 
         Assert.True(result.Success);
         Assert.Equal(0, result.Updated);
+    }
+
+    [Fact(DisplayName = "回填_boxType 固化列从原文补出历史值")]
+    public async Task Backfill_BoxTypeColumnFilled()
+    {
+        var tag = Guid.NewGuid().ToString("N")[..6];
+        var eventName = RegisterField(tag, "boxType");
+        var raw = SeedRaw(eventName, null, "{\"boxType\":\"A7\"}");
+        Assert.True(String.IsNullOrEmpty(raw.BoxType));
+
+        var result = await _service.BackfillAsync(new BackfillRequest { Event = eventName }, "tester");
+
+        Assert.True(result.Success);
+        Assert.Equal(1, result.Updated);
+
+        var saved = DeviceEventRaw.FindById(raw.Id);
+        Assert.Equal("A7", saved.BoxType);
+    }
+
+    [Fact(DisplayName = "回填_固化列已有值时不覆盖")]
+    public async Task Backfill_BoxTypeColumnNotOverwritten()
+    {
+        var tag = Guid.NewGuid().ToString("N")[..6];
+        var eventName = RegisterField(tag, "boxType");
+        var raw = SeedRaw(eventName, null, "{\"boxType\":\"NEW\"}");
+        var preset = DeviceEventRaw.FindById(raw.Id);
+        preset.BoxType = "KEEP";
+        preset.Update();
+
+        var result = await _service.BackfillAsync(new BackfillRequest { Event = eventName }, "tester");
+
+        Assert.True(result.Success);
+        // 行计数为 1：固化列 BoxType 已有值不覆盖，但 ExtJson 缺 boxType 键会被补上
+        Assert.Equal(1, result.Updated);
+
+        var saved = DeviceEventRaw.FindById(raw.Id);
+        Assert.Equal("KEEP", saved.BoxType);
+    }
+
+    [Fact(DisplayName = "回填_试运行不写固化列")]
+    public async Task Backfill_DryRunDoesNotWriteBoxType()
+    {
+        var tag = Guid.NewGuid().ToString("N")[..6];
+        var eventName = RegisterField(tag, "boxType");
+        var raw = SeedRaw(eventName, null, "{\"boxType\":\"A7\"}");
+
+        var result = await _service.BackfillAsync(new BackfillRequest { Event = eventName, DryRun = true }, "tester");
+
+        Assert.True(result.Success);
+        Assert.Equal(1, result.Updated);
+
+        var saved = DeviceEventRaw.FindById(raw.Id);
+        Assert.True(String.IsNullOrEmpty(saved.BoxType), "试运行不应写固化列");
+        Assert.True(String.IsNullOrEmpty(saved.ExtJson), "试运行不应写 ExtJson");
     }
 
     /// <summary>登记一个「已固化」字段；事件名带随机后缀，避免用例之间互相影响。</summary>

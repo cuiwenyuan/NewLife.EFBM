@@ -124,14 +124,27 @@ public sealed class FieldBackfillService
 
             try
             {
+                var changed = false;
+
                 if (TryMergeFields(entity, fields, out var merged) && merged != null)
                 {
                     if (!request.DryRun)
-                    {
                         entity.ExtJson = merged;
-                        entity.Update();
-                    }
+                    changed = true;
+                }
 
+                // 固化列回填：正式列只补空缺，绝不覆盖已有值（不变量①）
+                if (TryFillBoxType(entity, out var boxType))
+                {
+                    if (!request.DryRun)
+                        entity.BoxType = boxType;
+                    changed = true;
+                }
+
+                if (changed)
+                {
+                    if (!request.DryRun)
+                        entity.Update();
                     updated++;
                 }
             }
@@ -228,6 +241,44 @@ public sealed class FieldBackfillService
 
         mergedJson = JsonSerializer.Serialize(map);
         return true;
+    }
+
+    /// <summary>把 <c>data.boxType</c> 补进固化列 <c>BoxType</c>。</summary>
+    /// <param name="entity">原始报文。</param>
+    /// <param name="boxType">解析出的箱型；无需变更时为 <c>null</c>。</param>
+    /// <returns>有变更返回 <c>true</c>。</returns>
+    /// <remarks>
+    /// 字段固化演练（2026-11-13）的扩展点实现——类注释预埋的「若后续为该字段加了正式列，
+    /// 只需在这里增加一次赋值即可复用同一套扫描」。<c>boxType</c> 此前是未知字段、只留在
+    /// ExtJson；固化为正式列后，历史报文从 DataJson / RawJson 补出该值。
+    /// 与 ExtJson 回填同一组不变量：只补空缺不覆盖，报文原文不动，失败不阻断主流程。
+    /// </remarks>
+    private static Boolean TryFillBoxType(DeviceEventRaw entity, out String boxType)
+    {
+        boxType = null;
+
+        if (!String.IsNullOrWhiteSpace(entity.BoxType)) return false;
+
+        var source = String.IsNullOrWhiteSpace(entity.DataJson) ? ExtractDataJson(entity.RawJson) : entity.DataJson;
+        if (String.IsNullOrWhiteSpace(source)) return false;
+
+        try
+        {
+            using var doc = JsonDocument.Parse(source);
+            if (doc.RootElement.ValueKind == JsonValueKind.Object
+                && doc.RootElement.TryGetProperty("boxType", out var value)
+                && value.ValueKind == JsonValueKind.String)
+            {
+                boxType = value.GetString();
+                return !String.IsNullOrWhiteSpace(boxType);
+            }
+        }
+        catch (JsonException)
+        {
+            // 损坏的 data 原文跳过该条，不阻断回填主流程
+        }
+
+        return false;
     }
 
     /// <summary>从原始报文里取 <c>data</c> 节点；没有则取根对象。</summary>

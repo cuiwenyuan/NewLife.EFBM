@@ -3,14 +3,16 @@
   <PropertyGroup>
     <AssemblyTitle>EFBM 上报 API 与管理后台</AssemblyTitle>
     <Description>电动折盒机主动上报的纯接收端：NewLife.Cube 宿主、RedisStream 共享流、XCode 持久化</Description>
+    <!-- 版本基号（主.次）；发版时 tools/release.sh 自动按 NewLife 规则拼上 年.MDD（如 1.0.2026.1113 = 2026-11-13） -->
+    <Version>1.0</Version>
     <UserSecretsId>efbm-web</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="NewLife.Core" Version="11.11.2026.201" />
-    <PackageReference Include="NewLife.Cube.Core" Version="6.9.2026.201" />
-    <PackageReference Include="NewLife.Redis" Version="6.4.2026.201" />
-    <PackageReference Include="NewLife.Redis.Extensions" Version="6.4.2026.201" />
+    <PackageReference Include="NewLife.Core" Version="12.0.2026.1024" />
+    <PackageReference Include="NewLife.Cube.Core" Version="6.16.2026.1030" />
+    <PackageReference Include="NewLife.Redis" Version="7.0.2026.1024" />
+    <PackageReference Include="NewLife.Redis.Extensions" Version="7.0.2026.1024" />
   </ItemGroup>
 
   <ItemGroup>
