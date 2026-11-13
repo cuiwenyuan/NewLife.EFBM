@@ -1,6 +1,6 @@
-<#
+﻿<#
 .SYNOPSIS
-    EFBM Beta smoke test - send device reports and verify the receiver accepts them.
+    EFBM smoke test - send device reports and verify the receiver accepts them.
 
 .DESCRIPTION
     Posts one or more reports to POST /api/events, prints the HTTP status plus where
@@ -23,10 +23,10 @@
     How many reports to send. Each uses a unique timestamp, so EventKey differs.
 
 .EXAMPLE
-    powershell -ExecutionPolicy Bypass -File tools/beta-smoke.ps1
+    powershell -ExecutionPolicy Bypass -File tools/smoke.ps1
 
 .EXAMPLE
-    powershell -ExecutionPolicy Bypass -File tools/beta-smoke.ps1 -BaseUrl http://10.0.0.20:5000 -Count 5
+    powershell -ExecutionPolicy Bypass -File tools/smoke.ps1 -BaseUrl http://10.0.0.20:5000 -Count 5
 #>
 [CmdletBinding()]
 param(

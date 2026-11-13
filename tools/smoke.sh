@@ -1,13 +1,13 @@
 #!/bin/bash
 # ============================================================================
-# EFBM Beta 公网冒烟测试（bash 版，只用 curl，不依赖 jq）
+# EFBM 公网冒烟测试（bash 版，只用 curl，不依赖 jq）
 #
 # 用法：
-#   bash beta-smoke.sh                          # 默认打 https://efbm.cuiwenyuan.cn
-#   bash beta-smoke.sh -n 5                     # 发 5 条
-#   bash beta-smoke.sh -u http://1.2.3.4        # 换地址（SSL 没配好时先用 http）
-#   bash beta-smoke.sh -s 你的AppSecret          # 换密钥
-#   bash beta-smoke.sh -k                       # 跳过证书校验（证书链不完整时）
+#   bash smoke.sh                          # 默认打 https://efbm.cuiwenyuan.cn
+#   bash smoke.sh -n 5                     # 发 5 条
+#   bash smoke.sh -u http://1.2.3.4        # 换地址（SSL 没配好时先用 http）
+#   bash smoke.sh -s 你的AppSecret          # 换密钥
+#   bash smoke.sh -k                       # 跳过证书校验（证书链不完整时）
 #
 # 退出码：0 = 全部 200；非 0 = 有失败
 # ============================================================================
@@ -40,7 +40,7 @@ ENDPOINT="$BASE_URL/api/events"
 HEALTH="$BASE_URL/health"
 
 if [ -z "$APP_SECRET" ]; then
-  echo "✗ 未提供 AppSecret：bash beta-smoke.sh -s <你的AppSecret>（或环境变量 APP_SECRET）"
+  echo "✗ 未提供 AppSecret：bash smoke.sh -s <你的AppSecret>（或环境变量 APP_SECRET）"
   exit 2
 fi
 
