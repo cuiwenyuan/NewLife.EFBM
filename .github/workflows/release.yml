@@ -1,0 +1,104 @@
+# EFBM 自动发布 —— 打 tag 即发版，产物为双包 tar.gz + start.sh + GitHub Release
+#
+# 触发方式（二选一）：
+#   1. 推送标签（推荐）：git tag v1.0.2026.1113 && git push origin v1.0.2026.1113
+#      版本号从标签名提取（去掉 v 前缀），须符合 NewLife 规则：主.次.年.MDD
+#   2. Actions 页面手动触发（workflow_dispatch）：可填版本号；留空则按当天日期自动生成
+#
+# 版本号规则与打包逻辑全部复用 tools/release.sh，本工作流不重复实现。
+name: Release 发布
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '版本号（如 1.0.2026.1113；留空 = 按当天自动生成）'
+        required: false
+        default: ''
+
+permissions:
+  contents: write   # 创建 Release / 推送 tag 需要
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 .NET 10 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+          dotnet-quality: 'ga'
+
+      - name: 确定版本号（NewLife 规则：主.次.年.MDD）
+        id: ver
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "push" ]; then
+            # 标签触发：v1.0.2026.1113 -> 1.0.2026.1113
+            VERSION="${GITHUB_REF_NAME#v}"
+          elif [ -n "${{ inputs.version }}" ]; then
+            VERSION="${{ inputs.version }}"
+          else
+            # 手动触发未填版本：csproj 基号 + 当天 年.MDD（月不补零）
+            BASE="$(grep -oP '(?<=<Version>)[^<]+' src/EFBM.Web/EFBM.Web.csproj | head -1)"
+            VERSION="${BASE}.$(date +%Y).$(date +%-m%-d)"
+          fi
+          case "$VERSION" in
+            *.[0-9][0-9][0-9][0-9].[0-9]*) ;;   # 含 年.MDD，合规
+            *) echo "::error::版本号 $VERSION 不符合 NewLife 规则（主.次.年.MDD，如 1.0.2026.1113）"; exit 1 ;;
+          esac
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "==> 发布版本: $VERSION"
+
+      - name: 打包（自包含 + 框架依赖双包，随包生成 start.sh）
+        run: |
+          set -euo pipefail
+          chmod +x tools/release.sh
+          ./tools/release.sh "${{ steps.ver.outputs.version }}"
+
+      - name: 生成校验和与发布说明
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.ver.outputs.version }}"
+          cd publish
+          sha256sum "efbm-${VERSION}-linux64.tar.gz" "efbm-${VERSION}-linux64-fdd.tar.gz" > SHA256SUMS.txt
+          cat > release-notes.md <<'EOF'
+          ## 下载包说明
+
+          | 包 | 适用场景 |
+          |---|---|
+          | `efbm-版本-linux64.tar.gz` | **自包含版（推荐，宝塔首选）**：服务器无需安装 .NET 运行时 |
+          | `efbm-版本-linux64-fdd.tar.gz` | 框架依赖版：包体小，需服务器已装 ASP.NET Core 10.x 运行时 |
+
+          ## 部署要点
+
+          - 包内文件在**根目录**（无外层文件夹），解压到站点目录即可
+          - 统一入口 `bash start.sh`，宝塔「.Net项目」模块启动命令填它（见《部署文档.md》§4）
+          - 持久配置放**面板环境变量**或 `appsettings.Production.json`，勿改 start.sh（每次发版被覆盖）
+          - MySQL 连接串：面板环境变量设置 `XCode_EFBM` / `XCode_Membership` 即可，缺省 SQLite 零依赖起步
+
+          ## 校验和（SHA256）
+
+          ```
+          EOF
+          cat SHA256SUMS.txt >> release-notes.md
+          echo '```' >> release-notes.md
+
+      - name: 创建 GitHub Release 并上传产物
+        uses: softprops/action-gh-release@v2
+        with:
+          # 标签触发时用已有 tag；手动触发时以 v+版本号 自动建 tag（指向默认分支当前提交）
+          tag_name: ${{ github.event_name == 'push' && github.ref_name || format('v{0}', steps.ver.outputs.version) }}
+          name: EFBM v${{ steps.ver.outputs.version }}
+          body_path: publish/release-notes.md
+          files: |
+            publish/*.tar.gz
+            publish/SHA256SUMS.txt
+          make_latest: true
