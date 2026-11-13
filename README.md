@@ -55,7 +55,7 @@ tail -n 1 src/EFBM.Web/logs/api/api-$(date +%Y%m%d).log
 | 功能清单 | [Doc/功能清单.md](Doc/功能清单.md) | 拆分决策表、133 个功能点的实现 / 测试 / 注释三维状态、统计与待修复项 |
 | 上报字段字典 | [Doc/上报字段字典.md](Doc/上报字段字典.md) | 当前版本冻结（`ParseVersion=1.0`）：信封 / `data` 字段矩阵、接收端生成字段、状态字典、`ParseWarning`、演进流程 |
 | 竞品分析 | [Doc/竞品分析.md](Doc/竞品分析.md) | 内部系统降级说明 + 可选技术路径对比（WHY NOT）与功能遴选结果 |
-| 原始样例 | [API上报接口数据示例.txt](API上报接口数据示例.txt) | 设备侧上报示例，已归纳进需求说明 |
+| 原始样例 | [Doc/API上报接口数据示例.txt](Doc/API上报接口数据示例.txt) | 设备侧上报示例，已归纳进需求说明 |
 | 项目级技能 | [.workbuddy/skills/newlife-efbm/SKILL.md](.workbuddy/skills/newlife-efbm/SKILL.md) | WorkBuddy 侧的项目协作规范与官方资产索引 |
 
 > 约定：需求与计划处于讨论完善阶段，**不标版本号、不写变更记录、不登记决策过程**；改哪条直接改对应段落。Markdown 统一 UTF-8 无 BOM、简体中文，标准产出放 `Doc/`。
