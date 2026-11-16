@@ -35,7 +35,7 @@ public class EfbmOptions
     /// <summary>Redis 地址（主从 / 哨兵由部署环境提供）。</summary>
     public String RedisServer { get; set; } = "127.0.0.1:6379";
 
-    /// <summary>是否接入共享上报流。Beta 阶段可关闭，只用文本日志与本地兜底收数据。</summary>
+    /// <summary>是否接入共享上报流。服务器没装 Redis 时可关闭，只用文本日志与本地兜底收数据。</summary>
     /// <remarks>
     /// 关闭后 <see cref="IEventQueue"/> 不再尝试连接 Redis（避免每条请求都等超时），
     /// 接收链路直接走本地兜底 / 文本日志，响应里 <c>queued=false</c>。
@@ -171,10 +171,7 @@ public class EfbmOptions
     /// </remarks>
     public Int32 UserOnlineMode { get; set; } = 1;
 
-    /// <summary>Beta 引导配置：后台发放页面（P4）上线前的临时凭据来源，默认关闭。</summary>
-    public BetaOptions Beta { get; set; } = new();
-
-    /// <summary>请求日志配置：Beta 阶段每条上报的文本留痕，是队列不可用时的最后一道兜底。</summary>
+    /// <summary>请求日志配置：每条上报的文本留痕，是队列不可用时的最后一道兜底。</summary>
     public RequestLogOptions RequestLog { get; set; } = new();
 
     /// <summary>是否为外网部署。</summary>
@@ -209,9 +206,6 @@ public class EfbmOptions
             throw new InvalidOperationException("接管扫描间隔与批量必须为正数（EFBM:PersistClaimIntervalSeconds / PersistClaimBatchSize）");
         if (UserOnlineMode is < 0 or > 2)
             throw new InvalidOperationException("在线用户档位只能是 0（不记录）/ 1（仅已登录）/ 2（所有访客）（EFBM:UserOnlineMode）");
-
-        Beta ??= new BetaOptions();
-        Beta.ValidateOrThrow(IsInternet());
 
         RequestLog ??= new RequestLogOptions();
         RequestLog.ValidateOrThrow();

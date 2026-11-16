@@ -74,7 +74,7 @@ public sealed class RedisEventQueue : IEventQueue, IEventQueueProbe, IQueueMetri
         if (message == null) throw new ArgumentNullException(nameof(message));
         cancellationToken.ThrowIfCancellationRequested();
 
-        // Beta 纯日志模式：不连 Redis，直接走本地兜底 / 文本日志，避免每条请求都等连接超时
+        // 纯日志模式：不连 Redis，直接走本地兜底 / 文本日志，避免每条请求都等连接超时
         if (!_options.RedisEnabled) throw new InvalidOperationException("Redis 未启用（EFBM:RedisEnabled=false）");
 
         EnsureGroup();
@@ -200,7 +200,7 @@ public sealed class RedisEventQueue : IEventQueue, IEventQueueProbe, IQueueMetri
     /// <returns>消费组名。</returns>
     public String PersistGroup => _options.PersistGroup;
 
-    /// <summary>读取队列状态：连接是否可用与 Stream 当前长度，用于 Beta 验收与运维排查。</summary>
+    /// <summary>读取队列状态：连接是否可用与 Stream 当前长度，用于验收与运维排查。</summary>
     /// <param name="cancellationToken">取消令牌。</param>
     /// <returns>状态快照；Redis 不可用时返回错误摘要而不抛异常。</returns>
     public Task<QueueStatus> GetStatusAsync(CancellationToken cancellationToken = default)

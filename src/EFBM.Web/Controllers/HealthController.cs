@@ -116,7 +116,6 @@ public class HealthController : ControllerBase
             persistGroup = _options.PersistGroup,
             autoTrimEnabled = _options.AutoTrimEnabled,
             localFallbackEnabled = _options.LocalFallbackEnabled,
-            betaSeedEnabled = _options.Beta?.Enabled == true,
             hmacEnabled = _options.HmacEnabled,
             allowedIps = AccessPolicy.ParseList(_options.AllowedIps).Length,
             queryApiEnabled = !String.IsNullOrWhiteSpace(_options.QueryApiKey),

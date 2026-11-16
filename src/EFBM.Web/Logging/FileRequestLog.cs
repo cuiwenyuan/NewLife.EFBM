@@ -5,7 +5,7 @@ namespace EFBM.Web.Logging;
 
 // 📋 生效: instructions=[newlife-global,development] | skills=[project-architecture] | agent=default
 
-/// <summary>按天滚动的文本请求日志（JSONL）：Beta 阶段每条上报的磁盘留痕。</summary>
+/// <summary>按天滚动的文本请求日志（JSONL）：每条上报的磁盘留痕。</summary>
 /// <remarks>
 /// 为什么是文本文件而不是数据库：设备失败不重发，任何一条都不能丢；文件追加是最不依赖外部组件的落盘方式，
 /// 机器只要能写磁盘就能收数据。数据库落库（P3）上线后它继续作为审计与人工补录源。

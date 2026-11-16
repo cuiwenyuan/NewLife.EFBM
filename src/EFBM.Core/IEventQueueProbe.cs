@@ -7,7 +7,7 @@ namespace EFBM.Core;
 /// </remarks>
 public sealed class QueueStatus
 {
-    /// <summary>是否启用共享流；Beta 只写文本日志时为 <c>false</c>，不算故障。</summary>
+    /// <summary>是否启用共享流；纯日志模式只写文本日志时为 <c>false</c>，不算故障。</summary>
     public Boolean Enabled { get; set; } = true;
 
     /// <summary>是否连接成功。</summary>

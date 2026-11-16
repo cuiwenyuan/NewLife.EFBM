@@ -297,15 +297,15 @@ public class EventIngestServiceTests
     {
         var f = new Fixture();
 
-        await f.Service.IngestAsync(Fixture.Request(key: "beta-fbox-a01"));
+        await f.Service.IngestAsync(Fixture.Request(key: "app-fbox-a01"));
 
         var entry = f.Log.Entries[0];
-        Assert.Equal("beta****01", entry.AppKey);
+        Assert.Equal("app-****01", entry.AppKey);
         Assert.Equal("****", RequestLogEntry.MaskKey("short"));
         Assert.Null(RequestLogEntry.MaskKey(null));
 
         var json = entry.ToJson();
-        Assert.DoesNotContain("beta-fbox-a01", json);
+        Assert.DoesNotContain("app-fbox-a01", json);
         Assert.DoesNotContain("secret-1", json);
         Assert.DoesNotContain("\n", json);
     }

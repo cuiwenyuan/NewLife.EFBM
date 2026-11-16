@@ -7,7 +7,7 @@ namespace EFBM.Tests;
 
 /// <summary>文本请求日志测试：单行 JSON、原文完整、脱敏、按日 / 按大小滚动、失败不抛出。</summary>
 /// <remarks>
-/// 直接写临时目录里的真实文件，不用内存替身——Beta 阶段这条链路是数据的唯一留痕，必须验证真实 IO。
+/// 直接写临时目录里的真实文件，不用内存替身——纯日志模式下这条链路是数据的唯一留痕，必须验证真实 IO。
 /// 每个用例独立目录，结束时整体删除，不影响仓库与其它日志。
 /// </remarks>
 public class FileRequestLogTests
@@ -36,7 +36,7 @@ public class FileRequestLogTests
         MessageId = "m-1",
         EventKey = new String('a', 40),
         AuthMode = "AppKeyAppSecret",
-        AppKey = "beta****01",
+        AppKey = "app****01",
         StatusCode = status,
         Code = status == 200 ? 0 : status,
         Message = status == 200 ? "accepted" : "rejected",

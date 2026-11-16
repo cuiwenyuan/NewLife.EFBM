@@ -6,7 +6,7 @@ using System.Text.Json;
 
 // 📋 生效: instructions=[newlife-global,development] | skills=[project-architecture] | agent=default
 
-/// <summary>一次 <c>POST /api/events</c> 的请求日志条目；Beta 阶段以文本日志作为数据的暂存真相源。</summary>
+/// <summary>一次 <c>POST /api/events</c> 的请求日志条目；纯日志模式下以文本日志作为数据的暂存真相源。</summary>
 /// <remarks>
 /// <b>绝不写入 AppSecret 与 <c>Authorization</c></b>：只记录脱敏后的 AppKey 与设备号。
 /// <see cref="RawJson"/> 保留请求体原文（逐字符），设备失败不重发时靠它人工补录。
@@ -17,7 +17,7 @@ public sealed class RequestLogEntry
     /// <summary>服务端接收时间（UTC）。</summary>
     public DateTime ReceivedAt { get; set; } = DateTime.UtcNow;
 
-    /// <summary>链路追踪标识，便于与框架日志对齐；Beta 用 <c>messageId</c> 或请求头 <c>X-Request-Id</c>。</summary>
+    /// <summary>链路追踪标识，便于与框架日志对齐；缺省用 <c>messageId</c> 或请求头 <c>X-Request-Id</c>。</summary>
     public String TraceId { get; set; }
 
     /// <summary>HTTP 方法，固定为 <c>POST</c>。</summary>
@@ -97,7 +97,7 @@ public sealed class RequestLogEntry
     /// <summary>序列化为单行 JSON（JSONL 的一行）；字段顺序固定、空值省略。</summary>
     /// <remarks>
     /// 由 Core 统一提供，保证「写入」与「回放工具」使用同一套字段名；
-    /// 因此格式改动必须同步《Doc/Beta运行手册.md》§5 的字段表。
+    /// 因此格式改动必须同步《Doc/运行手册.md》§5 的字段表。
     /// </remarks>
     /// <param name="includeRaw">是否包含请求体原文；关闭后无法离线补录。</param>
     /// <returns>单行、无换行的 JSON 文本。</returns>

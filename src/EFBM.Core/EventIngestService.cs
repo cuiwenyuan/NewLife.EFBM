@@ -14,7 +14,7 @@ namespace EFBM.Core;
 /// ② 401 / 403 / 503 由宿主记高优告警，便于人工从日志补录原文；
 /// ③ Redis 故障时降级写本地暂存仍返回 200，且降级写入使用 <see cref="CancellationToken.None"/>，
 ///    即使请求中途断开也要把数据保住；
-/// ④ <b>Beta 语义</b>：队列与本地兜底都失效、但文本日志成功落盘时，仍返回 200
+/// ④ <b>兜底语义</b>：队列与本地兜底都失效、但文本日志成功落盘时，仍返回 200
 ///    （<c>message=accepted-by-log</c>、<c>queued=false</c>），数据在日志里可人工补录；
 ///    只有队列、兜底、日志三者全失败才 503。
 /// </remarks>
@@ -121,7 +121,7 @@ public sealed class EventIngestService
         }
         catch (Exception ex)
         {
-            // Beta 纯日志模式不尝试入流，告警文案保持简短，便于在日志文件里直接扫读
+            // 纯日志模式不尝试入流，告警文案保持简短，便于在日志文件里直接扫读
             var warning = !_options.RedisEnabled
                 ? "Redis 未启用（EFBM:RedisEnabled=false），未尝试写入共享流"
                 : $"XADD 失败 messageId={message.MessageId} eventKey={message.EventKey}: {ex.GetType().Name}: {ex.Message}";

@@ -48,10 +48,6 @@ services.AddEFBMAdmin();            // P4：后台原始报文检索 / 死信查
 
 var app = builder.Build();
 
-// Beta：按配置补齐引导设备与凭据。后台发放页面属 P4，没有它 Beta 无法联调；
-// 仅内网允许启用，外网部署会在 ValidateOrThrow 阶段直接拒绝启动。
-if (efbm.Beta?.Enabled == true) BetaSeedService.SeedOrThrow(efbm);
-
 // 启动日志：打印实际 provider、Redis 地址、Stream key、消费组与部署环境，便于核对内外网配置
 StartupDiagnostics.Log(app.Configuration, app.Environment, efbm);
 
@@ -101,7 +97,7 @@ app.MapControllerRoute(
     name: "default",
     pattern: "{controller=CubeHome}/{action=Index}/{id?}");
 
-// --replay <文件或目录>：把 Beta 文本日志里的数据补录进库，跑完即退出（不开 Web 服务）
+// --replay <文件或目录>：把文本日志里的数据补录进库，跑完即退出（不开 Web 服务）
 // 纯日志模式（RedisEnabled=false）服务器上没有消费者，这是入库的唯一通道；幂等由 EventKey 兜住
 var replayIndex = Array.FindIndex(args, a => String.Equals(a, "--replay", StringComparison.OrdinalIgnoreCase));
 if (replayIndex >= 0)

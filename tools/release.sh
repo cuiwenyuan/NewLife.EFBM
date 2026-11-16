@@ -51,7 +51,6 @@ mkdir -p logs/api
 # export EFBM__RedisServer=127.0.0.1:6379  # Redis 地址（默认即此，可改）
 # export EFBM__RedisPassword=              # Redis 密码
 # export EFBM__AuthMode=Anonymous          # 业务鉴权模式；外网必须 AppKeyAppSecret 或 Basic，禁止 Anonymous
-# export EFBM__Beta__Enabled=true          # 仅内网测试：Beta 引导凭据（外网启动自检会拒绝）
 
 # 自包含版：直接运行（chmod 兜底修复 Windows 打包丢失的可执行位）；
 # 框架依赖版：回退 dotnet（服务器需已装 ASP.NET Core 10.x 运行时，dotnet --info 核对）
@@ -65,7 +64,7 @@ EOF
 chmod +x "$1/start.sh"
 }
 
-package() { # $1=发布目录 $2=包文件名 —— 文件直接放包根目录（无外层文件夹），与 beta 包布局一致
+package() { # $1=发布目录 $2=包文件名 —— 文件直接放包根目录（无外层文件夹）
     rm -f "$2"
     tar -czf "$2" -C "$1" .
     echo "包: $2  $(ls -lh "$2" | awk '{print $5}')  SHA256: $(sha256sum "$2" | awk '{print $1}')"

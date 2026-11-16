@@ -7,7 +7,7 @@ namespace EFBM.Tests;
 
 // 📋 生效: instructions=[newlife-global,xcode,testing-strategy] | skills=[xcode-data-modeling,testing-strategy] | agent=default
 
-/// <summary>SQLite 提供者可用性验证：Beta 用单机 SQLite 存放设备凭据与兜底记录。</summary>
+/// <summary>SQLite 提供者可用性验证：联调用单机 SQLite 存放设备凭据与兜底记录。</summary>
 /// <remarks>
 /// 这些用例会真实创建 SQLite 文件并让 XCode 自动建表，因此能证明
 /// ① <c>XCode.SQLite</c> 原生库在本机可加载；② <c>Migration=On</c> 能自动建表；
@@ -37,17 +37,17 @@ public sealed class SqliteSmokeTests : IDisposable
     {
         var entity = new AppCredential
         {
-            AppKey = "beta-key",
-            AppSecret = "beta-secret",
+            AppKey = "smoke-key",
+            AppSecret = "smoke-secret",
             DeviceId = "FBOX-A01",
             Enabled = true,
-            Remark = "beta smoke",
+            Remark = "sqlite smoke",
         };
         Assert.Equal(1, entity.Insert());
 
-        var found = AppCredential.FindByAppKey("beta-key");
+        var found = AppCredential.FindByAppKey("smoke-key");
         Assert.NotNull(found);
-        Assert.Equal("beta-secret", found.AppSecret);
+        Assert.Equal("smoke-secret", found.AppSecret);
         Assert.Equal("FBOX-A01", found.DeviceId);
         Assert.True(found.Enabled);
 

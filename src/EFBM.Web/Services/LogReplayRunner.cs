@@ -4,7 +4,7 @@ using NewLife.Log;
 
 namespace EFBM.Web.Services;
 
-/// <summary>Beta 文本请求日志的回放补录工具（需求说明 §3.5、FR-11）。</summary>
+/// <summary>文本请求日志的回放补录工具（需求说明 §3.5、FR-11）。</summary>
 /// <remarks>
 /// 纯日志模式（<c>RedisEnabled=false</c>）期间收到的数据只在 <c>logs/api/api-yyyyMMdd.log</c> 里；
 /// 本工具把其中 <c>status=200</c> 的请求原文逐条送进 <see cref="EventPersistService"/> 直接落库，

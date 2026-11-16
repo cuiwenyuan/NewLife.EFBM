@@ -61,9 +61,6 @@ public static class StartupDiagnostics
         if (!options.RedisEnabled)
             XTrace.WriteLine("注意：共享上报流已关闭（EFBM:RedisEnabled=false），数据只进本地兜底与文本日志，queued 恒为 false");
 
-        if (options.Beta?.Enabled == true)
-            XTrace.WriteLine("Beta 引导已启用：deviceId={0} / appKey={1} / 幂等补齐设备与凭据（外网禁止）", options.Beta.DeviceId, options.Beta.AppKey);
-
         if (options.AutoTrimEnabled)
             XTrace.WriteLine("警告：自动裁剪已启用，可能静默删除未确认消息，必须关闭！");
         if (String.IsNullOrEmpty(businessConn))

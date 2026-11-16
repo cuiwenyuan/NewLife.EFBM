@@ -1,6 +1,6 @@
 namespace EFBM.Core;
 
-/// <summary>请求日志配置（<c>EFBM:RequestLog</c>）：Beta 阶段以文本日志记录每一条上报。</summary>
+/// <summary>请求日志配置（<c>EFBM:RequestLog</c>）：以文本日志记录每一条上报。</summary>
 /// <remarks>
 /// 每行一条 JSON（JSONL），字段固定、可直接 <c>grep</c>；按天滚动，超过 <see cref="MaxFileMB"/> 再按序号切分。
 /// 目录使用相对路径时以<b>宿主内容根目录</b>为基准，不随进程工作目录漂移（SQLite 曾因此踩坑）。
