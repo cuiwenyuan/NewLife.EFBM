@@ -63,7 +63,8 @@ else
     app.UseExceptionHandler("/CubeHome/Error");
 
 // 后台完全使用魔方自带的页面与权限体系：
-// 每个实体的控制器在 Areas/Admin/Controllers 下继承 ReadOnlyEntityController / EntityController，
+// 业务控制器在 Areas/Efbm/Controllers 下（独立 Efbm Area），菜单挂在「电动折盒机」根节点下，
+// 与 Cube 自带的「系统管理 / 魔方管理」分树；实体页继承 ReadOnlyEntityController / EntityController，
 // 列表、详情、导出由魔方内置模板渲染；权限走 EntityAuthorizeAttribute（菜单 × 权限位），
 // 角色在「系统管理 → 角色」里按权限项勾选，用户角色在「用户」页指派。
 // 静态文件中间件只服务魔方自带的前端资源，没有任何自建页面。
@@ -87,7 +88,14 @@ app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
 
+// 业务菜单从「系统管理」树迁到独立的「电动折盒机」树（独立 Efbm Area），必须在 UseCube 扫描前执行。
+// 保留菜单 ID，现场配过的角色权限串（菜单ID#权限位）不受影响；幂等，已是新结构则跳过。
+EfbmMenuMigrator.Migrate();
+
 app.UseCube(app.Environment);
+
+// Cube 扫描不排除 abstract 控制器，会误把 EfbmAdminController 加成菜单；此处清理掉
+EfbmMenuMigrator.RemovePhantomMenus();
 
 // 菜单在 UseCube 里扫描控制器生成，角色授权必须排在它后面：把「运维 / 只读」两个内置角色
 // 的菜单权限补齐（管理员是系统角色，魔方已自动授予全部菜单）。

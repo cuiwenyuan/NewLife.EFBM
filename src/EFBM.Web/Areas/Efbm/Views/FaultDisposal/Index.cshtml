@@ -10,14 +10,14 @@
     var deviceId = ViewBag.DeviceId as String;
     var current = Model?.Page ?? 1;
     var totalPages = Model?.TotalPages ?? 0;
-    String PageUrl(Int32 page) => $"/Admin/FaultDisposal?deviceId={Uri.EscapeDataString(deviceId ?? "")}&page={page}";
+    String PageUrl(Int32 page) => $"/Efbm/FaultDisposal?deviceId={Uri.EscapeDataString(deviceId ?? "")}&page={page}";
 }
 
 <div class="card card-primary card-outline">
     <div class="card-header">
         <h3 class="card-title"><i class="fa fa-medkit"></i> 未关闭故障（共 @(Model?.Total ?? 0) 条）</h3>
         <div class="card-tools">
-            <a class="btn btn-sm btn-default" href="/Admin/FaultRecord"><i class="fa fa-list"></i> 查看全部故障记录</a>
+            <a class="btn btn-sm btn-default" href="/Efbm/FaultRecord"><i class="fa fa-list"></i> 查看全部故障记录</a>
         </div>
     </div>
     <div class="card-body">
@@ -26,7 +26,7 @@
             <b>关闭只改状态与清除时间</b>，不改设备上报的故障信息；关闭原因必填并写入审计日志。
         </p>
 
-        <form class="form-inline mb-3" method="get" action="/Admin/FaultDisposal">
+        <form class="form-inline mb-3" method="get" action="/Efbm/FaultDisposal">
             <input class="form-control form-control-sm mr-2" name="deviceId" value="@deviceId" placeholder="设备编号，留空为全部" />
             <button class="btn btn-sm btn-primary" type="submit"><i class="fa fa-search"></i> 查询</button>
         </form>
@@ -55,7 +55,7 @@
                         {
                             <tr id="row-@item.Id">
                                 <td>@item.Id</td>
-                                <td><a href="/Admin/DeviceEventRaw?deviceId=@Uri.EscapeDataString(item.DeviceId ?? "")">@item.DeviceId</a></td>
+                                <td><a href="/Efbm/DeviceEventRaw?deviceId=@Uri.EscapeDataString(item.DeviceId ?? "")">@item.DeviceId</a></td>
                                 <td class="text-break">@item.Message</td>
                                 <td>@(item.OccurredAt > DateTime.MinValue ? item.OccurredAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") : "—")</td>
                                 <td>@FaultDisposalService.DescribeDuration(item)</td>
@@ -103,7 +103,7 @@
         if (!remark.trim()) { show(false, '关闭原因必填'); return; }
         if (!confirm('确认关闭这条故障？设备侧之后自动恢复也不会再改回未清除状态。')) return;
 
-        const res = await fetch('/Admin/FaultDisposal/Close', {
+        const res = await fetch('/Efbm/FaultDisposal/Close', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',

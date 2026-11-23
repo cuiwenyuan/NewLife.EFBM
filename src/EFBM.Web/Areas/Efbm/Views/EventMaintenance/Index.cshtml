@@ -102,7 +102,7 @@
         const headers = { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest' };
         if (confirmName) headers['X-Confirm'] = confirmName;
 
-        const res = await fetch('/Admin/EventMaintenance/' + action, {
+        const res = await fetch('/Efbm/EventMaintenance/' + action, {
             method: 'POST',
             headers,
             body: new URLSearchParams(body),
@@ -143,7 +143,7 @@
             已导出 <b>${d.rowCount}</b> 条，凭证 <code>${d.ticketId}</code>（${new Date(d.expiresAt).toLocaleString()} 过期）<br />
             文件：<code>${d.filePath}</code><br />
             SHA-256：<code>${d.sha256}</code><br />
-            <a class="btn btn-sm btn-outline-success mt-2" href="/Admin/EventMaintenance/Download?ticketId=${encodeURIComponent(d.ticketId)}">下载 CSV</a>
+            <a class="btn btn-sm btn-outline-success mt-2" href="/Efbm/EventMaintenance/Download?ticketId=${encodeURIComponent(d.ticketId)}">下载 CSV</a>
         </div>`;
     }
 

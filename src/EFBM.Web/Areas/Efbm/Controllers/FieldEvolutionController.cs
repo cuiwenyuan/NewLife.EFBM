@@ -2,10 +2,10 @@ using System.ComponentModel;
 using EFBM.Web.Services;
 using Microsoft.AspNetCore.Mvc;
 using NewLife.Cube;
-using NewLife.Cube.Areas.Admin;
+using EFBM.Web.Areas.Efbm;
 using XCode.Membership;
 
-namespace EFBM.Web.Areas.Admin.Controllers;
+namespace EFBM.Web.Areas.Efbm.Controllers;
 
 /// <summary>字段演进：字段字典、新增字段监测与现场补登（FR-27、FR-28 入口）。</summary>
 /// <remarks>
@@ -13,7 +13,7 @@ namespace EFBM.Web.Areas.Admin.Controllers;
 /// 补登<b>不会</b>自动建列，固化仍然要走「改 Model.xml → 重新生成 → 回溯回填」的正式流程（需求说明 §3.7），
 /// 页面上的「是否已固化」只是给人看的标记，不影响解析。
 /// </remarks>
-[AdminArea]
+[EfbmArea]
 [Menu(102, true, Icon = "fa-sitemap")]
 [DisplayName("字段演进")]
 [Description("已登记字段、报文中出现但未登记的新字段（按事件分组、首次出现、样例值），以及现场补登。")]

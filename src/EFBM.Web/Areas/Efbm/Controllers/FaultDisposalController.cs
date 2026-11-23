@@ -2,10 +2,10 @@ using System.ComponentModel;
 using EFBM.Web.Services;
 using Microsoft.AspNetCore.Mvc;
 using NewLife.Cube;
-using NewLife.Cube.Areas.Admin;
+using EFBM.Web.Areas.Efbm;
 using XCode.Membership;
 
-namespace EFBM.Web.Areas.Admin.Controllers;
+namespace EFBM.Web.Areas.Efbm.Controllers;
 
 /// <summary>故障处置：未关闭故障列表与「手动关闭」。</summary>
 /// <remarks>
@@ -16,7 +16,7 @@ namespace EFBM.Web.Areas.Admin.Controllers;
 /// 权限仍然完全走魔方：打开页面要 <c>Detail</c>，关闭要 <c>Update</c>，删除按钮不提供。
 /// 关闭前要求请求头 <c>X-Confirm: Close</c>，并由服务端强制校验关闭原因必填。
 /// </remarks>
-[AdminArea]
+[EfbmArea]
 [Menu(81, true, Icon = "fa-medkit")]
 [DisplayName("故障处置")]
 [Description("未关闭故障列表与手动关闭；关闭只改状态与清除时间，不改设备上报的事实字段。")]

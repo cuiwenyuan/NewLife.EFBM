@@ -23,7 +23,8 @@ public sealed class ExposureAllowlistMiddleware
         "/api/events",
         "/api/query",
         "/health",
-        "/Admin",
+        "/Admin",    // Cube 自带后台（用户 / 角色 / 系统设置）
+        "/Efbm",     // EFBM 业务后台（独立 Area，菜单与 Cube 自带分树）
         "/CubeHome",
     ];
 

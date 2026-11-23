@@ -1,9 +1,9 @@
 using System.ComponentModel;
 using System.Reflection;
-using EFBM.Web.Areas.Admin.Controllers;
+using EFBM.Web.Areas.Efbm.Controllers;
 using Microsoft.AspNetCore.Mvc;
 using NewLife.Cube;
-using NewLife.Cube.Areas.Admin;
+using EFBM.Web.Areas.Efbm;
 using XCode.Membership;
 
 namespace EFBM.Tests;
@@ -11,12 +11,12 @@ namespace EFBM.Tests;
 /// <summary>后台控制器的结构与权限标注：所有页面都必须按魔方标准挂 Area / 菜单 / 权限位。</summary>
 /// <remarks>
 /// 这组测试守的是「结构性约定」，不是某个页面的行为：
-/// ① 控制器必须带 <see cref="AdminArea"/>、<see cref="MenuAttribute"/>、<see cref="DisplayNameAttribute"/>，
+/// ① 控制器必须带 <see cref="EfbmArea"/>、<see cref="MenuAttribute"/>、<see cref="DisplayNameAttribute"/>，
 ///    否则魔方不会生成菜单，<c>EntityAuthorize</c> 找不到菜单会直接 403；
 /// ② 每个公开动作都必须有 <see cref="EntityAuthorizeAttribute"/>，权限位与约定一致
 ///    （查询 = Detail、写 = Update、删 = Delete）。漏标会被这里拦住，而不是等上线后被发现「谁都能删」。
 /// </remarks>
-public class AdminAreaTests
+public class EfbmAreaTests
 {
     /// <summary>后台全部控制器。</summary>
     public static TheoryData<Type> Controllers => new()
@@ -41,16 +41,16 @@ public class AdminAreaTests
     [MemberData(nameof(Controllers))]
     public void Controller_HasAreaAndMenu(Type type)
     {
-        Assert.NotNull(type.GetCustomAttribute<AdminArea>());
+        Assert.NotNull(type.GetCustomAttribute<EfbmArea>());
         Assert.NotNull(type.GetCustomAttribute<MenuAttribute>());
         Assert.NotNull(type.GetCustomAttribute<DisplayNameAttribute>());
         Assert.False(String.IsNullOrWhiteSpace(type.GetCustomAttribute<DisplayNameAttribute>()!.DisplayName));
     }
 
-    [Theory(DisplayName = "后台控制器_命名空间都在 Areas.Admin 下")]
+    [Theory(DisplayName = "后台控制器_命名空间都在 Areas.Efbm 下")]
     [MemberData(nameof(Controllers))]
-    public void Controller_LivesInAdminArea(Type type)
-        => Assert.EndsWith(".Areas.Admin.Controllers", type.Namespace);
+    public void Controller_LivesInEfbmArea(Type type)
+        => Assert.EndsWith(".Areas.Efbm.Controllers", type.Namespace);
 
     [Theory(DisplayName = "实体控制器_列表与详情要求查看权限")]
     [InlineData(typeof(DeviceEventRawController))]
@@ -152,7 +152,7 @@ public class AdminAreaTests
     [Fact(DisplayName = "维护页_写操作全部要求二次确认头")]
     public void Maintenance_WriteActionsCheckConfirm()
     {
-        var source = File.ReadAllText(RepoPaths.Find("src/EFBM.Web/Areas/Admin/Controllers/EventMaintenanceController.cs"));
+        var source = File.ReadAllText(RepoPaths.Find("src/EFBM.Web/Areas/Efbm/Controllers/EventMaintenanceController.cs"));
 
         // 只有真正会改数据的动作才需要确认；导出与页面本身不需要
         foreach (var action in new[] { "ReplayEvent", "ReplayRange", "ReplayDeadLetter", "Cleanup" })
@@ -167,10 +167,10 @@ public class AdminAreaTests
     [Fact(DisplayName = "故障处置与字段演进_写操作也强制二次确认")]
     public void DisposalAndEvolution_WriteActionsCheckConfirm()
     {
-        var fault = File.ReadAllText(RepoPaths.Find("src/EFBM.Web/Areas/Admin/Controllers/FaultDisposalController.cs"));
+        var fault = File.ReadAllText(RepoPaths.Find("src/EFBM.Web/Areas/Efbm/Controllers/FaultDisposalController.cs"));
         Assert.Contains("Confirmed(", Slice(fault, "public async Task<ActionResult> Close("));
 
-        var field = File.ReadAllText(RepoPaths.Find("src/EFBM.Web/Areas/Admin/Controllers/FieldEvolutionController.cs"));
+        var field = File.ReadAllText(RepoPaths.Find("src/EFBM.Web/Areas/Efbm/Controllers/FieldEvolutionController.cs"));
         foreach (var action in new[] { "Register", "Delete", "Backfill" })
         {
             Assert.Contains("Confirmed(", Slice(field, $"public async Task<ActionResult> {action}("));

@@ -15,7 +15,9 @@ public sealed class ExposureAllowlistTests
     [InlineData("/api/query/stream")]
     [InlineData("/health")]
     [InlineData("/Admin")]
-    [InlineData("/Admin/DeviceEventRaw")]
+    [InlineData("/Admin/User/Login")]
+    [InlineData("/Efbm")]
+    [InlineData("/Efbm/DeviceEventRaw")]
     [InlineData("/CubeHome/Index")]
     [InlineData("/Content/css/site.css")]
     [InlineData("/Scripts/jquery.js")]
@@ -30,6 +32,7 @@ public sealed class ExposureAllowlistTests
     [InlineData("/swagger/index.html")]
     [InlineData("/api/internal/debug")]
     [InlineData("/Admin/../web.config")]
+    [InlineData("/Efbm/../web.config")]
     [InlineData("/metrics")]
     [InlineData("/elmah.axd")]
     public void Denied(String path) => Assert.False(ExposureAllowlistMiddleware.IsAllowed(path), $"{path} 应被拦下");
@@ -41,6 +44,7 @@ public sealed class ExposureAllowlistTests
 
         Assert.Contains("/api/events", lines);
         Assert.Contains("/Admin", lines);
+        Assert.Contains("/Efbm", lines);
         Assert.Contains(lines, e => e.Contains(".js"));
     }
 }

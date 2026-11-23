@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using NewLife.Cube;
 using XCode.Membership;
 
-namespace EFBM.Web.Areas.Admin.Controllers;
+namespace EFBM.Web.Areas.Efbm.Controllers;
 
 /// <summary>EFBM 后台自定义页面的公共基类：操作人、二次确认、结果提示。</summary>
 /// <remarks>

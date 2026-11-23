@@ -3,17 +3,17 @@ using EFBM.Core;
 using EFBM.Data.Entities;
 using Microsoft.AspNetCore.Mvc;
 using NewLife.Cube;
-using NewLife.Cube.Areas.Admin;
+using EFBM.Web.Areas.Efbm;
 using XCode.Membership;
 
-namespace EFBM.Web.Areas.Admin.Controllers;
+namespace EFBM.Web.Areas.Efbm.Controllers;
 
 /// <summary>消费组监控：Stream 长度、各组 lag / PEL / 消费者、最慢组与僵尸组、裁剪水位。</summary>
 /// <remarks>
 /// 只读页面（<c>Detail</c> 权限），所有数据来自 <c>XINFO</c> / <c>XPENDING</c>，不建组、不确认、不裁剪。
 /// Redis 不可用时页面照常打开并显示错误摘要——运维最先要知道的就是「连不上」这件事。
 /// </remarks>
-[AdminArea]
+[EfbmArea]
 [Menu(101, true, Icon = "fa-tachometer")]
 [DisplayName("消费组监控")]
 [Description("共享上报流的长度、各组积压与未确认消息、消费者空闲情况、最慢组与僵尸组、安全裁剪水位。")]

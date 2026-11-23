@@ -2,10 +2,10 @@ using System.ComponentModel;
 using EFBM.Web.Services;
 using Microsoft.AspNetCore.Mvc;
 using NewLife.Cube;
-using NewLife.Cube.Areas.Admin;
+using EFBM.Web.Areas.Efbm;
 using XCode.Membership;
 
-namespace EFBM.Web.Areas.Admin.Controllers;
+namespace EFBM.Web.Areas.Efbm.Controllers;
 
 /// <summary>数据维护：重放、按范围补数、标记处理状态、凭证式导出与清理。</summary>
 /// <remarks>
@@ -16,7 +16,7 @@ namespace EFBM.Web.Areas.Admin.Controllers;
 /// 二次确认在服务端强制：所有写操作都要求请求头 <c>X-Confirm</c> 等于动作名，
 /// 页面上的确认弹窗只是配合它，脚本绕过弹窗也绕不过服务端。
 /// </remarks>
-[AdminArea]
+[EfbmArea]
 [Menu(100, true, Icon = "fa-tools")]
 [DisplayName("数据维护")]
 [Description("重放报文 / 按范围补数 / 标记处理状态，以及凭证式导出与清理。")]

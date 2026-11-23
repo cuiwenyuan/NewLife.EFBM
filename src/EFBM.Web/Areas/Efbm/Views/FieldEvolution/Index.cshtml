@@ -20,8 +20,8 @@
     <div class="card-header">
         <h3 class="card-title"><i class="fa fa-sitemap"></i> 新增字段监测</h3>
         <div class="card-tools">
-            <a class="btn btn-sm btn-default" href="/Admin/DeviceEventRaw"><i class="fa fa-file-alt"></i> 原始报文</a>
-            <a class="btn btn-sm btn-default" href="/Admin/FieldEvolution"><i class="fa fa-sync"></i> 重新扫描</a>
+            <a class="btn btn-sm btn-default" href="/Efbm/DeviceEventRaw"><i class="fa fa-file-alt"></i> 原始报文</a>
+            <a class="btn btn-sm btn-default" href="/Efbm/FieldEvolution"><i class="fa fa-sync"></i> 重新扫描</a>
         </div>
     </div>
     <div class="card-body">
@@ -39,7 +39,7 @@
             </div>
         }
 
-        <form class="form-inline mb-3" method="get" action="/Admin/FieldEvolution">
+        <form class="form-inline mb-3" method="get" action="/Efbm/FieldEvolution">
             <label class="mr-1">统计天数</label>
             <input class="form-control form-control-sm mr-3" style="width:90px" type="number" name="days" value="@(snapshot.From == default ? 7 : Math.Max(1, (Int32)(snapshot.To - snapshot.From).TotalDays))" />
             <label class="mr-1">扫描上限</label>
@@ -83,7 +83,7 @@
                                 <td>
                                     @if (item.SampleEventId > 0)
                                     {
-                                        <a href="/Admin/DeviceEventRaw/Detail/@item.SampleEventId" title="查看样例报文">@item.SampleDeviceId</a>
+                                        <a href="/Efbm/DeviceEventRaw/Detail/@item.SampleEventId" title="查看样例报文">@item.SampleDeviceId</a>
                                     }
                                     else
                                     {
@@ -249,7 +249,7 @@
     }
 
     async function call(action, body) {
-        const res = await fetch('/Admin/FieldEvolution/' + action, {
+        const res = await fetch('/Efbm/FieldEvolution/' + action, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',

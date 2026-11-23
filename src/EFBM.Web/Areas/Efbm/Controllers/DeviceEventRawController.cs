@@ -1,9 +1,9 @@
 using System.ComponentModel;
 using EFBM.Data.Entities;
 using NewLife.Cube;
-using NewLife.Cube.Areas.Admin;
+using EFBM.Web.Areas.Efbm;
 
-namespace EFBM.Web.Areas.Admin.Controllers;
+namespace EFBM.Web.Areas.Efbm.Controllers;
 
 /// <summary>原始报文：设备上报的原文，只读。</summary>
 /// <remarks>
@@ -11,7 +11,7 @@ namespace EFBM.Web.Areas.Admin.Controllers;
 /// 列表与详情要求 <c>Detail</c>，导出沿用同一权限位。报文由设备产生，页面不提供新增与编辑；
 /// 标记处理状态、重放与清理统一放在「数据维护」页（需要 <c>Update</c> / <c>Delete</c>）。
 /// </remarks>
-[AdminArea]
+[EfbmArea]
 [Menu(10, true, Icon = "fa-file-text-o")]
 [DisplayName("原始报文")]
 [Description("设备上报的原始报文，只读；支持按设备、事件类型、处理状态与接收时间检索。")]
